@@ -34,3 +34,5 @@ A native iOS calendar app built in Swift/SwiftUI focused on UX and UI design tas
 - Favor modern Swift idioms and SwiftUI best practices
 - Keep views small and composable
 - Use descriptive variable names for clarity
+
+GitHub test
