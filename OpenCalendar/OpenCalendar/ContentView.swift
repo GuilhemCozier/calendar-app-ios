@@ -6,61 +6,80 @@
 //
 
 import SwiftUI
-import SwiftData
 
 struct ContentView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
+    var body: some View {
+        DayView()
+    }
+}
+
+struct DayView: View {
+    // Generate 24 hours (0-23)
+    private let hours = Array(0..<24)
 
     var body: some View {
-        NavigationSplitView {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
+        ScrollView {
+            HStack(alignment: .top, spacing: 0) {
+                // Left column: Hour labels
+                VStack(alignment: .trailing, spacing: 0) {
+                    ForEach(hours, id: \.self) { hour in
+                        HourLabel(hour: hour)
                     }
                 }
-                .onDelete(perform: deleteItems)
-            }
-#if os(macOS)
-            .navigationSplitViewColumnWidth(min: 180, ideal: 200)
-#endif
-            .toolbar {
-#if os(iOS)
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
-                }
-#endif
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
+                .frame(width: 60)
+
+                // Right side: Time slots grid
+                VStack(spacing: 0) {
+                    ForEach(0..<96, id: \.self) { slotIndex in
+                        TimeSlotRow(slotIndex: slotIndex)
                     }
                 }
             }
-        } detail: {
-            Text("Select an item")
+            .padding(.horizontal, 8)
         }
+        .background(Color(.white))
+    }
+}
+
+struct HourLabel: View {
+    let hour: Int
+
+    private var timeString: String {
+        String(format: "%02d:00", hour)
     }
 
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
-        }
+    var body: some View {
+        Text(timeString)
+            .font(.system(size: 11, weight: .regular))
+            .foregroundColor(.secondary)
+            .frame(height: 60, alignment: .top)
+            .padding(.trailing, 8)
+            .offset(y: -6) // Align with hour line
+    }
+}
+
+struct TimeSlotRow: View {
+    let slotIndex: Int
+
+    // Each slot represents 15 minutes
+    // Show border only on hour boundaries (every 4th slot: 0, 4, 8, 12...)
+    private var showBorder: Bool {
+        slotIndex % 4 == 0
     }
 
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
+    var body: some View {
+        Rectangle()
+            .fill(Color.clear)
+            .frame(height: 15)
+            .overlay(alignment: .bottom) {
+                if showBorder {
+                    Divider()
+                        .background(Color.gray.opacity(0.3))
+                }
             }
-        }
     }
 }
 
 #Preview {
     ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
 }
