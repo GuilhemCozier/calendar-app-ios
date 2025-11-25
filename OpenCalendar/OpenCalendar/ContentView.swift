@@ -33,15 +33,15 @@ struct TopNavBar: View {
             HStack(spacing: 12) {
                 Image(systemName: "line.3.horizontal")
                     .font(.system(size: 18))
-                    .foregroundColor(.primary)
+                    .foregroundColor(.black)
 
                 Text("November")
                     .font(.system(size: 15))
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.black)
 
                 Image(systemName: "chevron.up.chevron.down")
                     .font(.system(size: 10))
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.black)
             }
 
             Spacer()
@@ -50,11 +50,11 @@ struct TopNavBar: View {
             HStack(spacing: 16) {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 18))
-                    .foregroundColor(.primary)
+                    .foregroundColor(.black)
 
                 Text("19")
                     .font(.system(size: 14))
-                    .foregroundColor(.primary)
+                    .foregroundColor(.black)
                     .frame(width: 32, height: 32)
                     .background(Color.gray.opacity(0.1))
                     .cornerRadius(8)
@@ -74,10 +74,10 @@ struct DateRow: View {
             HStack(spacing: 4) {
                 Text("UTC+1")
                     .font(.system(size: 11))
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.black)
                 Image(systemName: "chevron.up.chevron.down")
                     .font(.system(size: 8))
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.black)
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
@@ -90,10 +90,10 @@ struct DateRow: View {
             VStack(spacing: 2) {
                 Text("Wed")
                     .font(.system(size: 12))
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.black)
                 Text("19")
                     .font(.system(size: 24, weight: .semibold))
-                    .foregroundColor(.primary)
+                    .foregroundColor(.black)
             }
         }
         .padding(.horizontal, 16)
@@ -109,7 +109,7 @@ struct WholeDayRow: View {
             // Left: "All day" label
             Text("All day")
                 .font(.system(size: 11))
-                .foregroundColor(.secondary)
+                .foregroundColor(.black)
                 .frame(width: 60, alignment: .trailing)
                 .padding(.trailing, 8)
 
@@ -163,7 +163,7 @@ struct HourLabel: View {
     var body: some View {
         Text(timeString)
             .font(.system(size: 11))
-            .foregroundColor(.secondary)
+            .foregroundColor(.black)
             .frame(height: 60, alignment: .top)
             .padding(.trailing, 8)
             .offset(y: -6)
