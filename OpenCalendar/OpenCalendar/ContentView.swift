@@ -68,14 +68,15 @@ struct ContentView: View {
     @State private var sheetPosition: SheetPosition = .hidden
     @State private var events: [CalendarEvent] = []
     @State private var currentDate: Date = Date()
-    @State private var dateOffset: CGFloat = 0
-    @State private var swipeDirection: SwipeDirection = .none
     @State private var showQuickNavigation: Bool = false
     @State private var shouldScrollMonthToToday: Bool = true
+    @State private var buttonDragOffset: CGSize = .zero
+    @State private var isDraggingButton: Bool = false
+    @State private var dragStartLocation: CGPoint?
 
-    enum SwipeDirection {
-        case none, left, right
-    }
+    // Carousel state
+    @State private var dayCarouselOffset: CGFloat = 0
+    @State private var isDraggingDay: Bool = false
 
     private var filteredAllDayEvents: [CalendarEvent] {
         events.filter { event in
@@ -120,50 +121,96 @@ struct ContentView: View {
                         .transition(.move(edge: .top).combined(with: .opacity))
                     }
 
-                    // Animated content area
+                    // Day carousel with pre-rendered slides
                     ZStack {
-                        VStack(spacing: 0) {
-                            DateRow(currentDate: currentDate)
-                            WholeDayRow(events: filteredAllDayEvents)
-                            DayCanvas(
+                        // Previous day slide
+                        if let prevDay = Calendar.current.date(byAdding: .day, value: -1, to: currentDate) {
+                            DayContentView(
+                                date: prevDay,
                                 timeSelection: $timeSelection,
-                                events: filteredTimedEvents
+                                events: events
                             )
+                            .id("day-\(Calendar.current.startOfDay(for: prevDay).timeIntervalSince1970)")
+                            .frame(width: geometry.size.width)
+                            .offset(x: -geometry.size.width + dayCarouselOffset)
                         }
-                        .offset(x: dateOffset)
-                        .opacity(Double(1.0 - min(abs(dateOffset) / geometry.size.width, 1.0)))
+
+                        // Current day slide
+                        DayContentView(
+                            date: currentDate,
+                            timeSelection: $timeSelection,
+                            events: events
+                        )
+                        .id("day-\(Calendar.current.startOfDay(for: currentDate).timeIntervalSince1970)")
+                        .frame(width: geometry.size.width)
+                        .offset(x: dayCarouselOffset)
+
+                        // Next day slide
+                        if let nextDay = Calendar.current.date(byAdding: .day, value: 1, to: currentDate) {
+                            DayContentView(
+                                date: nextDay,
+                                timeSelection: $timeSelection,
+                                events: events
+                            )
+                            .id("day-\(Calendar.current.startOfDay(for: nextDay).timeIntervalSince1970)")
+                            .frame(width: geometry.size.width)
+                            .offset(x: geometry.size.width + dayCarouselOffset)
+                        }
                     }
                     .clipped()
-                }
-                .gesture(
-                    DragGesture(minimumDistance: 30)
-                        .onChanged { value in
-                            // Only update offset for horizontal drags during swipe navigation
-                            // Don't interfere with quick navigation
-                            guard !showQuickNavigation else { return }
+                    .animation(.easeOut(duration: 0.0), value: currentDate)
+                    .gesture(
+                        DragGesture(minimumDistance: 0)
+                            .onChanged { value in
+                                // Only handle horizontal swipes for day navigation
+                                guard !showQuickNavigation else { return }
 
-                            let horizontalAmount = value.translation.width
-                            let verticalAmount = abs(value.translation.height)
+                                let horizontalAmount = value.translation.width
+                                let verticalAmount = abs(value.translation.height)
 
-                            if abs(horizontalAmount) > verticalAmount {
-                                dateOffset = horizontalAmount
+                                if abs(horizontalAmount) > verticalAmount {
+                                    isDraggingDay = true
+                                    dayCarouselOffset = horizontalAmount
+                                }
                             }
-                        }
-                        .onEnded { value in
-                            guard !showQuickNavigation else { return }
-                            handleSwipe(value)
-                        }
-                )
+                            .onEnded { value in
+                                guard !showQuickNavigation else { return }
+                                handleDaySwipe(value, screenWidth: geometry.size.width)
+                            }
+                    )
+                }
 
+                // Interactive Add Event Button
                 AddEventButton()
                     .padding(.trailing, 20)
                     .padding(.bottom, 20)
+                    .offset(x: buttonDragOffset.width, y: buttonDragOffset.height)
+                    .opacity(isDraggingButton ? 0.7 : 1.0)
+                    .gesture(
+                        DragGesture(minimumDistance: 0)
+                            .onChanged { value in
+                                let distance = sqrt(pow(value.translation.width, 2) + pow(value.translation.height, 2))
+                                if distance > 5 {
+                                    isDraggingButton = true
+                                    buttonDragOffset = value.translation
+                                }
+                            }
+                            .onEnded { value in
+                                let distance = sqrt(pow(value.translation.width, 2) + pow(value.translation.height, 2))
+                                if distance > 5 {
+                                    handleButtonDrop(dragValue: value, geometry: geometry)
+                                } else {
+                                    handleButtonTap()
+                                }
+                            }
+                    )
 
                 // Event creation module
                 if timeSelection != nil {
                     EventCreationModule(
                         timeSelection: $timeSelection,
                         sheetPosition: $sheetPosition,
+                        currentDate: currentDate,
                         onAddEvent: { event in
                             events.append(event)
                         }
@@ -182,55 +229,154 @@ struct ContentView: View {
     }
 
     private func animateToDate(_ date: Date) {
-        let calendar = Calendar.current
-        let direction: SwipeDirection = calendar.compare(date, to: currentDate, toGranularity: .day) == .orderedDescending ? .left : .right
-
-        swipeDirection = direction
-
         withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
             currentDate = date
-            dateOffset = 0
+            dayCarouselOffset = 0
         }
     }
 
-    private func handleSwipe(_ gesture: DragGesture.Value) {
+    private func handleDaySwipe(_ gesture: DragGesture.Value, screenWidth: CGFloat) {
         let horizontalAmount = gesture.translation.width
         let verticalAmount = abs(gesture.translation.height)
 
-        // Only handle horizontal swipes (not vertical)
+        // Only handle horizontal swipes
         guard abs(horizontalAmount) > verticalAmount else {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                dateOffset = 0
+                dayCarouselOffset = 0
+                isDraggingDay = false
             }
             return
         }
 
-        if abs(horizontalAmount) > 50 {
-            // Determine swipe direction
+        let threshold = screenWidth * 0.3
+
+        if abs(horizontalAmount) > threshold {
             if horizontalAmount < 0 {
                 // Swipe left: go to next day
-                swipeDirection = .left
                 if let nextDay = Calendar.current.date(byAdding: .day, value: 1, to: currentDate) {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                         currentDate = nextDay
-                        dateOffset = 0
+                        dayCarouselOffset = 0
                     }
+
+                    // Update top nav month if month changed
+                    updateMonthIfNeeded(newDate: nextDay)
                 }
             } else {
                 // Swipe right: go to previous day
-                swipeDirection = .right
                 if let previousDay = Calendar.current.date(byAdding: .day, value: -1, to: currentDate) {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                         currentDate = previousDay
-                        dateOffset = 0
+                        dayCarouselOffset = 0
                     }
+
+                    // Update top nav month if month changed
+                    updateMonthIfNeeded(newDate: previousDay)
                 }
             }
         } else {
-            // Snap back to original position
+            // Snap back
             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                dateOffset = 0
+                dayCarouselOffset = 0
             }
+        }
+
+        isDraggingDay = false
+    }
+
+    private func updateMonthIfNeeded(newDate: Date) {
+        // This is just for top nav bar - it will update automatically via currentDate binding
+    }
+
+    private func handleButtonTap() {
+        // Calculate next full hour
+        let now = Date()
+        let calendar = Calendar.current
+        let currentHour = calendar.component(.hour, from: now)
+        let currentMinute = calendar.component(.minute, from: now)
+
+        // Next full hour
+        let nextHour = currentMinute > 0 ? currentHour + 1 : currentHour
+        let startSlotIndex = nextHour * 4  // Each hour = 4 slots
+        let endSlotIndex = min(startSlotIndex + 4, 95)  // +1 hour, max 95
+
+        timeSelection = TimeSelection(
+            startSlotIndex: startSlotIndex,
+            endSlotIndex: endSlotIndex
+        )
+
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            sheetPosition = .expanded
+        }
+    }
+
+    private func handleButtonDrop(dragValue: DragGesture.Value, geometry: GeometryProxy) {
+        // Calculate drop position relative to screen
+        // Button starts at bottom right, so we need to calculate its initial position
+        let screenHeight = geometry.size.height
+        let buttonInitialY = screenHeight - 56 - 20  // button height + bottom padding
+        let dropY = buttonInitialY + dragValue.translation.height
+
+        // DayCanvas starts after TopNavBar + QuickNav (if shown) + DateRow + WholeDayRow
+        // Approximate offset to canvas area (adjust based on your layout)
+        let topOffset: CGFloat = showQuickNavigation ? 350 : 100  // Rough estimate
+
+        if dropY > topOffset {
+            // Calculate which slot based on Y position
+            let canvasY = dropY - topOffset
+            let slotHeight: CGFloat = 15
+            let slotIndex = Int(canvasY / slotHeight)
+
+            // Clamp to valid range (0-95)
+            let startSlotIndex = max(0, min(slotIndex, 95))
+            let endSlotIndex = min(startSlotIndex + 4, 95)  // +1 hour
+
+            timeSelection = TimeSelection(
+                startSlotIndex: startSlotIndex,
+                endSlotIndex: endSlotIndex
+            )
+
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                sheetPosition = .expanded
+            }
+        }
+
+        // Reset button position
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            buttonDragOffset = .zero
+            isDraggingButton = false
+        }
+    }
+}
+
+// MARK: - Day Content View
+struct DayContentView: View {
+    let date: Date
+    @Binding var timeSelection: TimeSelection?
+    let events: [CalendarEvent]
+
+    private let calendar = Calendar.current
+
+    private var filteredAllDayEvents: [CalendarEvent] {
+        events.filter { event in
+            event.isAllDay && calendar.isDate(event.startDate, inSameDayAs: date)
+        }
+    }
+
+    private var filteredTimedEvents: [CalendarEvent] {
+        events.filter { event in
+            !event.isAllDay && calendar.isDate(event.startDate, inSameDayAs: date)
+        }
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            DateRow(currentDate: date)
+            WholeDayRow(events: filteredAllDayEvents)
+            DayCanvas(
+                timeSelection: $timeSelection,
+                events: filteredTimedEvents
+            )
         }
     }
 }
@@ -351,11 +497,10 @@ struct QuickDateSelector: View {
     @Binding var currentDate: Date
     let today: Date = Date()
 
-    private let calendar = Calendar.current
+    @State private var dragOffset: CGFloat = 0
+    @State private var displayMonth: Date = Date()
 
-    private var displayedMonth: Date {
-        currentDate
-    }
+    private let calendar = Calendar.current
 
     private var weekDays: [String] {
         let formatter = DateFormatter()
@@ -366,8 +511,142 @@ struct QuickDateSelector: View {
         }
     }
 
+    var body: some View {
+        GeometryReader { geometry in
+            VStack(spacing: 8) {
+                // Week days header
+                HStack(spacing: 0) {
+                    ForEach(weekDays, id: \.self) { day in
+                        Text(day)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(.gray)
+                            .frame(maxWidth: .infinity)
+                    }
+                }
+                .padding(.horizontal, 16)
+
+                // Carousel of month grids
+                ZStack {
+                    // Previous month
+                    if let prevMonth = calendar.date(byAdding: .month, value: -1, to: displayMonth) {
+                        MonthGridView(
+                            month: prevMonth,
+                            currentDate: currentDate,
+                            today: today,
+                            onDateTap: { date in
+                                currentDate = date
+                            }
+                        )
+                        .frame(width: geometry.size.width)
+                        .offset(x: -geometry.size.width + dragOffset)
+                    }
+
+                    // Current month
+                    MonthGridView(
+                        month: displayMonth,
+                        currentDate: currentDate,
+                        today: today,
+                        onDateTap: { date in
+                            currentDate = date
+                        }
+                    )
+                    .frame(width: geometry.size.width)
+                    .offset(x: dragOffset)
+
+                    // Next month
+                    if let nextMonth = calendar.date(byAdding: .month, value: 1, to: displayMonth) {
+                        MonthGridView(
+                            month: nextMonth,
+                            currentDate: currentDate,
+                            today: today,
+                            onDateTap: { date in
+                                currentDate = date
+                            }
+                        )
+                        .frame(width: geometry.size.width)
+                        .offset(x: geometry.size.width + dragOffset)
+                    }
+                }
+                .clipped()
+                .gesture(
+                    DragGesture()
+                        .onChanged { value in
+                            dragOffset = value.translation.width
+                        }
+                        .onEnded { value in
+                            handleSwipe(value, screenWidth: geometry.size.width)
+                        }
+                )
+            }
+            .padding(.vertical, 12)
+            .background(Color.white)
+        }
+        .frame(height: 280)
+        .onAppear {
+            // Initialize display month to current date's month
+            if let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: currentDate)) {
+                displayMonth = monthStart
+            }
+        }
+        .onChange(of: currentDate) { _, newValue in
+            // Update display month when current date changes from external source (e.g., month selector)
+            if !calendar.isDate(newValue, equalTo: displayMonth, toGranularity: .month) {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    if let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: newValue)) {
+                        displayMonth = monthStart
+                    }
+                }
+            }
+        }
+    }
+
+    private func handleSwipe(_ gesture: DragGesture.Value, screenWidth: CGFloat) {
+        let threshold: CGFloat = screenWidth * 0.3
+
+        if gesture.translation.width < -threshold {
+            // Swipe left: next month
+            if let nextMonth = calendar.date(byAdding: .month, value: 1, to: displayMonth) {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    displayMonth = nextMonth
+                    dragOffset = 0
+                }
+            } else {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    dragOffset = 0
+                }
+            }
+        } else if gesture.translation.width > threshold {
+            // Swipe right: previous month
+            if let prevMonth = calendar.date(byAdding: .month, value: -1, to: displayMonth) {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    displayMonth = prevMonth
+                    dragOffset = 0
+                }
+            } else {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    dragOffset = 0
+                }
+            }
+        } else {
+            // Snap back
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                dragOffset = 0
+            }
+        }
+    }
+}
+
+// MARK: - Month Grid View
+struct MonthGridView: View {
+    let month: Date
+    let currentDate: Date
+    let today: Date
+    let onDateTap: (Date) -> Void
+
+    private let calendar = Calendar.current
+
     private var datesInMonth: [Date?] {
-        guard let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: displayedMonth)),
+        guard let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: month)),
               let monthRange = calendar.range(of: .day, in: .month, for: monthStart) else {
             return []
         }
@@ -387,40 +666,24 @@ struct QuickDateSelector: View {
     }
 
     var body: some View {
-        VStack(spacing: 8) {
-            // Week days header
-            HStack(spacing: 0) {
-                ForEach(weekDays, id: \.self) { day in
-                    Text(day)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(.gray)
-                        .frame(maxWidth: .infinity)
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 7), spacing: 8) {
+            ForEach(Array(datesInMonth.enumerated()), id: \.offset) { index, date in
+                if let date = date {
+                    DateCellButton(
+                        date: date,
+                        currentDate: currentDate,
+                        today: today,
+                        onTap: {
+                            onDateTap(date)
+                        }
+                    )
+                } else {
+                    Color.clear
+                        .frame(height: 32)
                 }
             }
-            .padding(.horizontal, 16)
-
-            // Dates grid
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 7), spacing: 8) {
-                ForEach(Array(datesInMonth.enumerated()), id: \.offset) { index, date in
-                    if let date = date {
-                        DateCellButton(
-                            date: date,
-                            currentDate: currentDate,
-                            today: today,
-                            onTap: {
-                                currentDate = date
-                            }
-                        )
-                    } else {
-                        Color.clear
-                            .frame(height: 32)
-                    }
-                }
-            }
-            .padding(.horizontal, 16)
         }
-        .padding(.vertical, 12)
-        .background(Color.white)
+        .padding(.horizontal, 16)
     }
 }
 
@@ -920,16 +1183,12 @@ struct EventView: View {
 // MARK: - Add Event Button
 struct AddEventButton: View {
     var body: some View {
-        Button(action: {
-            // Action to add event
-        }) {
-            Image(systemName: "plus")
-                .font(.system(size: 24, weight: .medium))
-                .foregroundColor(.black)
-                .frame(width: 56, height: 56)
-                .background(Color.gray.opacity(0.8))
-                .clipShape(Circle())
-        }
+        Image(systemName: "plus")
+            .font(.system(size: 24, weight: .medium))
+            .foregroundColor(.black)
+            .frame(width: 56, height: 56)
+            .background(Color.gray.opacity(0.8))
+            .clipShape(Circle())
     }
 }
 
@@ -943,6 +1202,7 @@ enum SheetPosition {
 struct EventCreationModule: View {
     @Binding var timeSelection: TimeSelection?
     @Binding var sheetPosition: SheetPosition
+    let currentDate: Date
     let onAddEvent: (CalendarEvent) -> Void
 
     @State private var title: String = ""
@@ -957,6 +1217,7 @@ struct EventCreationModule: View {
     @State private var datePickerMode: DatePickerMode = .start
     @State private var timePickerMode: TimePickerMode = .start
     @FocusState private var isTitleFocused: Bool
+    @State private var hasInitialized: Bool = false
 
     private let peekHeight: CGFloat = 80
 
@@ -1261,6 +1522,22 @@ struct EventCreationModule: View {
                 }
             }
         )
+        .onChange(of: sheetPosition) { _, newValue in
+            // Initialize dates when sheet opens
+            if newValue == .expanded && !hasInitialized {
+                startDate = currentDate
+                endDate = currentDate
+                hasInitialized = true
+
+                // Auto-focus title field when expanding
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    isTitleFocused = true
+                }
+            } else if newValue == .hidden {
+                // Reset initialization flag when sheet closes
+                hasInitialized = false
+            }
+        }
     }
 
     private func formattedDate(_ date: Date) -> String {
@@ -1527,6 +1804,7 @@ struct DatePickerCalendarModule: View {
 
     @State private var displayedMonth: Date
     @State private var tempSelectedDate: Date
+    @State private var dragOffset: CGFloat = 0
     @State private var slideDirection: SlideDirection = .none
 
     enum SlideDirection {
@@ -1579,35 +1857,60 @@ struct DatePickerCalendarModule: View {
             .padding(.horizontal, 20)
             .padding(.bottom, 8)
 
-            // Calendar grid
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 7), spacing: 8) {
-                ForEach(Array(datesInMonth.enumerated()), id: \.offset) { index, date in
-                    if let date = date {
-                        DateCell(
-                            date: date,
-                            isSelected: Calendar.current.isDate(date, inSameDayAs: tempSelectedDate),
-                            isCurrentMonth: Calendar.current.isDate(date, equalTo: displayedMonth, toGranularity: .month)
-                        ) {
+            // Calendar grid with carousel
+            GeometryReader { geometry in
+                ZStack {
+                    // Previous month
+                    if let prevMonth = Calendar.current.date(byAdding: .month, value: -1, to: displayedMonth) {
+                        CalendarGridView(
+                            month: prevMonth,
+                            selectedDate: tempSelectedDate,
+                            onDateTap: { date in
+                                tempSelectedDate = date
+                            }
+                        )
+                        .frame(width: geometry.size.width)
+                        .offset(x: -geometry.size.width + dragOffset)
+                    }
+
+                    // Current month
+                    CalendarGridView(
+                        month: displayedMonth,
+                        selectedDate: tempSelectedDate,
+                        onDateTap: { date in
                             tempSelectedDate = date
                         }
-                    } else {
-                        Color.clear
-                            .frame(height: 40)
+                    )
+                    .frame(width: geometry.size.width)
+                    .offset(x: dragOffset)
+
+                    // Next month
+                    if let nextMonth = Calendar.current.date(byAdding: .month, value: 1, to: displayedMonth) {
+                        CalendarGridView(
+                            month: nextMonth,
+                            selectedDate: tempSelectedDate,
+                            onDateTap: { date in
+                                tempSelectedDate = date
+                            }
+                        )
+                        .frame(width: geometry.size.width)
+                        .offset(x: geometry.size.width + dragOffset)
                     }
                 }
+                .clipped()
+                .gesture(
+                    DragGesture()
+                        .onChanged { value in
+                            dragOffset = value.translation.width
+                        }
+                        .onEnded { value in
+                            handleSwipe(value, screenWidth: geometry.size.width)
+                        }
+                )
             }
+            .frame(height: 280)
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
-            .gesture(
-                DragGesture()
-                    .onEnded { value in
-                        if value.translation.width < -50 {
-                            nextMonth()
-                        } else if value.translation.width > 50 {
-                            previousMonth()
-                        }
-                    }
-            )
 
             // Confirm button
             Button(action: {
@@ -1679,6 +1982,97 @@ struct DatePickerCalendarModule: View {
                 displayedMonth = newMonth
             }
         }
+    }
+
+    private func handleSwipe(_ gesture: DragGesture.Value, screenWidth: CGFloat) {
+        let threshold: CGFloat = screenWidth * 0.3
+
+        if gesture.translation.width < -threshold {
+            // Swipe left: next month
+            if let nextMonth = Calendar.current.date(byAdding: .month, value: 1, to: displayedMonth) {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    displayedMonth = nextMonth
+                    dragOffset = 0
+                }
+            } else {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    dragOffset = 0
+                }
+            }
+        } else if gesture.translation.width > threshold {
+            // Swipe right: previous month
+            if let prevMonth = Calendar.current.date(byAdding: .month, value: -1, to: displayedMonth) {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    displayedMonth = prevMonth
+                    dragOffset = 0
+                }
+            } else {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    dragOffset = 0
+                }
+            }
+        } else {
+            // Snap back
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                dragOffset = 0
+            }
+        }
+    }
+}
+
+// MARK: - Calendar Grid View (for DatePicker)
+struct CalendarGridView: View {
+    let month: Date
+    let selectedDate: Date
+    let onDateTap: (Date) -> Void
+
+    private let calendar = Calendar.current
+
+    private var datesInMonth: [Date?] {
+        guard let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: month)) else {
+            return []
+        }
+
+        let weekday = calendar.component(.weekday, from: monthStart)
+        let adjustedWeekday = weekday == 1 ? 6 : weekday - 2
+
+        guard let monthRange = calendar.range(of: .day, in: .month, for: monthStart) else {
+            return []
+        }
+
+        var dates: [Date?] = []
+
+        for _ in 0..<adjustedWeekday {
+            dates.append(nil)
+        }
+
+        for day in monthRange {
+            if let date = calendar.date(byAdding: .day, value: day - 1, to: monthStart) {
+                dates.append(date)
+            }
+        }
+
+        return dates
+    }
+
+    var body: some View {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 7), spacing: 8) {
+            ForEach(Array(datesInMonth.enumerated()), id: \.offset) { index, date in
+                if let date = date {
+                    DateCell(
+                        date: date,
+                        isSelected: calendar.isDate(date, inSameDayAs: selectedDate),
+                        isCurrentMonth: calendar.isDate(date, equalTo: month, toGranularity: .month)
+                    ) {
+                        onDateTap(date)
+                    }
+                } else {
+                    Color.clear
+                        .frame(height: 40)
+                }
+            }
+        }
+        .padding(.horizontal, 20)
     }
 }
 
