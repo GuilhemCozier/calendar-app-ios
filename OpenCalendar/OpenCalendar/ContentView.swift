@@ -29,6 +29,15 @@ struct TimeSelection: Equatable {
     }
 }
 
+// MARK: - Repetition Type
+enum RepetitionType: String, CaseIterable, Hashable {
+    case none = "No"
+    case daily = "Every day"
+    case weekly = "Every week"
+    case monthly = "Every month"
+    case yearly = "Every year"
+}
+
 // MARK: - Event Model
 struct CalendarEvent: Identifiable, Equatable {
     let id = UUID()
@@ -39,6 +48,7 @@ struct CalendarEvent: Identifiable, Equatable {
     var isAllDay: Bool
     var startDate: Date
     var endDate: Date
+    var repetition: RepetitionType
 
     var startTime: String {
         let hour = startSlotIndex / 4
@@ -58,6 +68,14 @@ struct ContentView: View {
     @State private var sheetPosition: SheetPosition = .hidden
     @State private var events: [CalendarEvent] = []
     @State private var currentDate: Date = Date()
+    @State private var dateOffset: CGFloat = 0
+    @State private var swipeDirection: SwipeDirection = .none
+    @State private var showQuickNavigation: Bool = false
+    @State private var shouldScrollMonthToToday: Bool = true
+
+    enum SwipeDirection {
+        case none, left, right
+    }
 
     private var filteredAllDayEvents: [CalendarEvent] {
         events.filter { event in
@@ -72,38 +90,146 @@ struct ContentView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .bottomTrailing) {
-            VStack(spacing: 0) {
-                TopNavBar()
-                DateRow()
-                WholeDayRow(events: filteredAllDayEvents)
-                DayCanvas(
-                    timeSelection: $timeSelection,
-                    events: filteredTimedEvents
-                )
-            }
+        GeometryReader { geometry in
+            ZStack(alignment: .bottomTrailing) {
+                VStack(spacing: 0) {
+                    TopNavBar(
+                        currentDate: currentDate,
+                        onTodayTapped: {
+                            animateToDate(Date())
+                            shouldScrollMonthToToday = true
+                        },
+                        onMonthTapped: {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                showQuickNavigation.toggle()
+                            }
+                        }
+                    )
 
-            AddEventButton()
-                .padding(.trailing, 20)
-                .padding(.bottom, 20)
-
-            // Event creation module
-            if timeSelection != nil {
-                EventCreationModule(
-                    timeSelection: $timeSelection,
-                    sheetPosition: $sheetPosition,
-                    onAddEvent: { event in
-                        events.append(event)
+                    // Quick Navigation (conditionally shown)
+                    if showQuickNavigation {
+                        VStack(spacing: 0) {
+                            MonthSelector(
+                                currentDate: $currentDate,
+                                shouldScrollToToday: $shouldScrollMonthToToday
+                            )
+                            Divider()
+                            QuickDateSelector(currentDate: $currentDate)
+                            Divider()
+                        }
+                        .transition(.move(edge: .top).combined(with: .opacity))
                     }
+
+                    // Animated content area
+                    ZStack {
+                        VStack(spacing: 0) {
+                            DateRow(currentDate: currentDate)
+                            WholeDayRow(events: filteredAllDayEvents)
+                            DayCanvas(
+                                timeSelection: $timeSelection,
+                                events: filteredTimedEvents
+                            )
+                        }
+                        .offset(x: dateOffset)
+                        .opacity(Double(1.0 - min(abs(dateOffset) / geometry.size.width, 1.0)))
+                    }
+                    .clipped()
+                }
+                .gesture(
+                    DragGesture(minimumDistance: 30)
+                        .onChanged { value in
+                            // Only update offset for horizontal drags during swipe navigation
+                            // Don't interfere with quick navigation
+                            guard !showQuickNavigation else { return }
+
+                            let horizontalAmount = value.translation.width
+                            let verticalAmount = abs(value.translation.height)
+
+                            if abs(horizontalAmount) > verticalAmount {
+                                dateOffset = horizontalAmount
+                            }
+                        }
+                        .onEnded { value in
+                            guard !showQuickNavigation else { return }
+                            handleSwipe(value)
+                        }
                 )
+
+                AddEventButton()
+                    .padding(.trailing, 20)
+                    .padding(.bottom, 20)
+
+                // Event creation module
+                if timeSelection != nil {
+                    EventCreationModule(
+                        timeSelection: $timeSelection,
+                        sheetPosition: $sheetPosition,
+                        onAddEvent: { event in
+                            events.append(event)
+                        }
+                    )
+                }
+            }
+            .background(Color.white)
+            .onChange(of: timeSelection) { _, newValue in
+                if newValue != nil {
+                    sheetPosition = .peek
+                } else {
+                    sheetPosition = .hidden
+                }
             }
         }
-        .background(Color.white)
-        .onChange(of: timeSelection) { _, newValue in
-            if newValue != nil {
-                sheetPosition = .peek
+    }
+
+    private func animateToDate(_ date: Date) {
+        let calendar = Calendar.current
+        let direction: SwipeDirection = calendar.compare(date, to: currentDate, toGranularity: .day) == .orderedDescending ? .left : .right
+
+        swipeDirection = direction
+
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+            currentDate = date
+            dateOffset = 0
+        }
+    }
+
+    private func handleSwipe(_ gesture: DragGesture.Value) {
+        let horizontalAmount = gesture.translation.width
+        let verticalAmount = abs(gesture.translation.height)
+
+        // Only handle horizontal swipes (not vertical)
+        guard abs(horizontalAmount) > verticalAmount else {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                dateOffset = 0
+            }
+            return
+        }
+
+        if abs(horizontalAmount) > 50 {
+            // Determine swipe direction
+            if horizontalAmount < 0 {
+                // Swipe left: go to next day
+                swipeDirection = .left
+                if let nextDay = Calendar.current.date(byAdding: .day, value: 1, to: currentDate) {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                        currentDate = nextDay
+                        dateOffset = 0
+                    }
+                }
             } else {
-                sheetPosition = .hidden
+                // Swipe right: go to previous day
+                swipeDirection = .right
+                if let previousDay = Calendar.current.date(byAdding: .day, value: -1, to: currentDate) {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                        currentDate = previousDay
+                        dateOffset = 0
+                    }
+                }
+            }
+        } else {
+            // Snap back to original position
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                dateOffset = 0
             }
         }
     }
@@ -111,21 +237,39 @@ struct ContentView: View {
 
 // MARK: - Top Nav Bar
 struct TopNavBar: View {
+    let currentDate: Date
+    let onTodayTapped: () -> Void
+    let onMonthTapped: () -> Void
+
+    private var monthName: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMMM"
+        return formatter.string(from: currentDate)
+    }
+
+    private var todayDayNumber: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "d"
+        return formatter.string(from: Date())
+    }
+
     var body: some View {
         HStack {
             // Left side
-            HStack(spacing: 12) {
-                Image(systemName: "line.3.horizontal")
-                    .font(.system(size: 18))
-                    .foregroundColor(.black)
+            Button(action: onMonthTapped) {
+                HStack(spacing: 12) {
+                    Image(systemName: "line.3.horizontal")
+                        .font(.system(size: 18))
+                        .foregroundColor(.black)
 
-                Text("November")
-                    .font(.system(size: 15))
-                    .foregroundColor(.black)
+                    Text(monthName)
+                        .font(.system(size: 15))
+                        .foregroundColor(.black)
 
-                Image(systemName: "chevron.up.chevron.down")
-                    .font(.system(size: 10))
-                    .foregroundColor(.black)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 10))
+                        .foregroundColor(.black)
+                }
             }
 
             Spacer()
@@ -136,12 +280,14 @@ struct TopNavBar: View {
                     .font(.system(size: 18))
                     .foregroundColor(.black)
 
-                Text("19")
-                    .font(.system(size: 14))
-                    .foregroundColor(.black)
-                    .frame(width: 32, height: 32)
-                    .background(Color.gray.opacity(0.1))
-                    .cornerRadius(8)
+                Button(action: onTodayTapped) {
+                    Text(todayDayNumber)
+                        .font(.system(size: 14))
+                        .foregroundColor(.black)
+                        .frame(width: 32, height: 32)
+                        .background(Color.gray.opacity(0.1))
+                        .cornerRadius(8)
+                }
             }
         }
         .padding(.horizontal, 16)
@@ -152,6 +298,20 @@ struct TopNavBar: View {
 
 // MARK: - Date Row
 struct DateRow: View {
+    let currentDate: Date
+
+    private var dayOfWeek: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEE"
+        return formatter.string(from: currentDate)
+    }
+
+    private var dayNumber: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "d"
+        return formatter.string(from: currentDate)
+    }
+
     var body: some View {
         HStack {
             // UTC Button
@@ -172,10 +332,10 @@ struct DateRow: View {
 
             // Date Container
             VStack(spacing: 2) {
-                Text("Wed")
+                Text(dayOfWeek)
                     .font(.system(size: 12))
                     .foregroundColor(.black)
-                Text("19")
+                Text(dayNumber)
                     .font(.system(size: 24, weight: .semibold))
                     .foregroundColor(.black)
             }
@@ -183,6 +343,236 @@ struct DateRow: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
         .background(Color.white)
+    }
+}
+
+// MARK: - Quick Date Selector
+struct QuickDateSelector: View {
+    @Binding var currentDate: Date
+    let today: Date = Date()
+
+    private let calendar = Calendar.current
+
+    private var displayedMonth: Date {
+        currentDate
+    }
+
+    private var weekDays: [String] {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEE"
+        return (0..<7).map { dayOffset in
+            let date = calendar.date(byAdding: .day, value: dayOffset, to: calendar.date(from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: Date()))!)!
+            return formatter.string(from: date).prefix(1).uppercased()
+        }
+    }
+
+    private var datesInMonth: [Date?] {
+        guard let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: displayedMonth)),
+              let monthRange = calendar.range(of: .day, in: .month, for: monthStart) else {
+            return []
+        }
+
+        let firstWeekday = calendar.component(.weekday, from: monthStart)
+        let leadingEmptyDays = (firstWeekday - calendar.firstWeekday + 7) % 7
+
+        var dates: [Date?] = Array(repeating: nil, count: leadingEmptyDays)
+
+        for day in monthRange {
+            if let date = calendar.date(byAdding: .day, value: day - 1, to: monthStart) {
+                dates.append(date)
+            }
+        }
+
+        return dates
+    }
+
+    var body: some View {
+        VStack(spacing: 8) {
+            // Week days header
+            HStack(spacing: 0) {
+                ForEach(weekDays, id: \.self) { day in
+                    Text(day)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.gray)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+            .padding(.horizontal, 16)
+
+            // Dates grid
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 7), spacing: 8) {
+                ForEach(Array(datesInMonth.enumerated()), id: \.offset) { index, date in
+                    if let date = date {
+                        DateCellButton(
+                            date: date,
+                            currentDate: currentDate,
+                            today: today,
+                            onTap: {
+                                currentDate = date
+                            }
+                        )
+                    } else {
+                        Color.clear
+                            .frame(height: 32)
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+        }
+        .padding(.vertical, 12)
+        .background(Color.white)
+    }
+}
+
+struct DateCellButton: View {
+    let date: Date
+    let currentDate: Date
+    let today: Date
+    let onTap: () -> Void
+
+    private let calendar = Calendar.current
+
+    private var dayNumber: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "d"
+        return formatter.string(from: date)
+    }
+
+    private var isSelected: Bool {
+        calendar.isDate(date, inSameDayAs: currentDate)
+    }
+
+    private var isToday: Bool {
+        calendar.isDate(date, inSameDayAs: today)
+    }
+
+    var body: some View {
+        Button(action: onTap) {
+            Text(dayNumber)
+                .font(.system(size: 14, weight: isSelected ? .semibold : .regular))
+                .foregroundColor(isSelected ? .white : (isToday ? .blue : .black))
+                .frame(height: 32)
+                .frame(maxWidth: .infinity)
+                .background(
+                    isSelected ? Color.blue : (isToday ? Color.blue.opacity(0.1) : Color.clear)
+                )
+                .cornerRadius(16)
+        }
+    }
+}
+
+// MARK: - Month Selector
+struct MonthSelector: View {
+    @Binding var currentDate: Date
+    @Binding var shouldScrollToToday: Bool
+    let today: Date = Date()
+
+    private let calendar = Calendar.current
+
+    private var months: [(date: Date, name: String, isYear: Bool)] {
+        var result: [(date: Date, name: String, isYear: Bool)] = []
+
+        // Generate 36 months: 24 before today and 12 after today
+        // This allows scrolling to previous months
+        for offset in -24...12 {
+            if let monthDate = calendar.date(byAdding: .month, value: offset, to: today) {
+                let formatter = DateFormatter()
+                formatter.dateFormat = "MMM"
+                let monthName = formatter.string(from: monthDate)
+
+                result.append((monthDate, monthName, false))
+
+                // Add year indicator after December
+                let month = calendar.component(.month, from: monthDate)
+                if month == 12 {
+                    let year = calendar.component(.year, from: monthDate)
+                    let yearDate = monthDate
+                    result.append((yearDate, String(year), true))
+                }
+            }
+        }
+
+        return result
+    }
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(Array(months.enumerated()), id: \.offset) { index, item in
+                        if item.isYear {
+                            // Year container
+                            Text(item.name)
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(.gray)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                        } else {
+                            // Month button
+                            MonthButton(
+                                monthDate: item.date,
+                                monthName: item.name,
+                                currentDate: currentDate,
+                                onTap: {
+                                    currentDate = item.date
+                                }
+                            )
+                            .id(index)
+                        }
+                    }
+                }
+                .padding(.horizontal, 16)
+            }
+            .frame(height: 44)
+            .background(Color.white)
+            .onAppear {
+                // Only scroll to today's month on initial appear
+                if shouldScrollToToday {
+                    if let todayIndex = months.firstIndex(where: { calendar.isDate($0.date, equalTo: today, toGranularity: .month) }) {
+                        proxy.scrollTo(todayIndex, anchor: .leading)
+                    }
+                    shouldScrollToToday = false
+                }
+            }
+            .onChange(of: shouldScrollToToday) { _, newValue in
+                // Scroll to today's month when explicitly requested (e.g., today button tapped)
+                if newValue {
+                    if let todayIndex = months.firstIndex(where: { calendar.isDate($0.date, equalTo: today, toGranularity: .month) }) {
+                        withAnimation {
+                            proxy.scrollTo(todayIndex, anchor: .leading)
+                        }
+                    }
+                    DispatchQueue.main.async {
+                        shouldScrollToToday = false
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct MonthButton: View {
+    let monthDate: Date
+    let monthName: String
+    let currentDate: Date
+    let onTap: () -> Void
+
+    private let calendar = Calendar.current
+
+    private var isSelected: Bool {
+        calendar.isDate(monthDate, equalTo: currentDate, toGranularity: .month)
+    }
+
+    var body: some View {
+        Button(action: onTap) {
+            Text(monthName)
+                .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
+                .foregroundColor(isSelected ? .white : .black)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(isSelected ? Color.blue : Color.gray.opacity(0.1))
+                .cornerRadius(16)
+        }
     }
 }
 
@@ -561,6 +951,7 @@ struct EventCreationModule: View {
     @State private var dragOffset: CGFloat = 0
     @State private var startDate: Date = Date()
     @State private var endDate: Date = Date()
+    @State private var repetition: RepetitionType = .none
     @State private var showDatePicker: Bool = false
     @State private var showTimePicker: Bool = false
     @State private var datePickerMode: DatePickerMode = .start
@@ -750,9 +1141,14 @@ struct EventCreationModule: View {
 
                                 Spacer()
 
-                                Text("No")
-                                    .font(.system(size: 17))
-                                    .foregroundColor(.black)
+                                Picker("", selection: $repetition) {
+                                    ForEach(RepetitionType.allCases, id: \.self) { type in
+                                        Text(type.rawValue)
+                                            .tag(type)
+                                    }
+                                }
+                                .labelsHidden()
+                                .frame(width: 150, alignment: .trailing)
                             }
                             .padding(.horizontal, 16)
                             .padding(.vertical, 12)
@@ -917,17 +1313,33 @@ struct EventCreationModule: View {
             return
         }
 
-        let event = CalendarEvent(
-            title: title,
-            description: description,
-            startSlotIndex: selection.startSlotIndex,
-            endSlotIndex: selection.endSlotIndex,
-            isAllDay: isAllDay,
-            startDate: startDate,
-            endDate: endDate
-        )
-
-        onAddEvent(event)
+        // Create recurring events based on repetition type
+        if repetition == .none {
+            // Single event
+            let event = CalendarEvent(
+                title: title,
+                description: description,
+                startSlotIndex: selection.startSlotIndex,
+                endSlotIndex: selection.endSlotIndex,
+                isAllDay: isAllDay,
+                startDate: startDate,
+                endDate: endDate,
+                repetition: repetition
+            )
+            onAddEvent(event)
+        } else {
+            // Create recurring events for the next year (52 weeks/365 days)
+            createRecurringEvents(
+                title: title,
+                description: description,
+                startSlotIndex: selection.startSlotIndex,
+                endSlotIndex: selection.endSlotIndex,
+                isAllDay: isAllDay,
+                baseStartDate: startDate,
+                baseEndDate: endDate,
+                repetition: repetition
+            )
+        }
 
         // Close the module and reset
         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
@@ -938,7 +1350,66 @@ struct EventCreationModule: View {
             isAllDay = false
             startDate = Date()
             endDate = Date()
+            repetition = .none
             isTitleFocused = false
+        }
+    }
+
+    private func createRecurringEvents(
+        title: String,
+        description: String,
+        startSlotIndex: Int,
+        endSlotIndex: Int,
+        isAllDay: Bool,
+        baseStartDate: Date,
+        baseEndDate: Date,
+        repetition: RepetitionType
+    ) {
+        let calendar = Calendar.current
+        var occurrences: [Date] = []
+
+        // Determine how many occurrences to create and the interval
+        let (count, component): (Int, Calendar.Component) = {
+            switch repetition {
+            case .daily:
+                return (365, .day)  // 365 days
+            case .weekly:
+                return (52, .weekOfYear)  // 52 weeks
+            case .monthly:
+                return (12, .month)  // 12 months
+            case .yearly:
+                return (5, .year)  // 5 years
+            case .none:
+                return (0, .day)
+            }
+        }()
+
+        // Generate occurrence dates
+        for i in 0..<count {
+            if let newStartDate = calendar.date(byAdding: component, value: i, to: baseStartDate) {
+                occurrences.append(newStartDate)
+            }
+        }
+
+        // Create events for each occurrence
+        for occurrenceDate in occurrences {
+            // Calculate the time difference between baseStartDate and baseEndDate
+            let timeDifference = calendar.dateComponents([.day, .hour, .minute], from: baseStartDate, to: baseEndDate)
+
+            // Apply the same time difference to the occurrence date
+            let occurrenceEndDate = calendar.date(byAdding: timeDifference, to: occurrenceDate) ?? occurrenceDate
+
+            let event = CalendarEvent(
+                title: title,
+                description: description,
+                startSlotIndex: startSlotIndex,
+                endSlotIndex: endSlotIndex,
+                isAllDay: isAllDay,
+                startDate: occurrenceDate,
+                endDate: occurrenceEndDate,
+                repetition: repetition
+            )
+            onAddEvent(event)
         }
     }
 }
