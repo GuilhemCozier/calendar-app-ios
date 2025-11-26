@@ -164,7 +164,7 @@ struct ContentView: View {
     @State private var timeSelection: TimeSelection?
     @State private var sheetPosition: SheetPosition = .hidden
     @State private var events: [CalendarEvent] = []
-    @State private var currentDate: Date = Date()
+    @State private var viewedDate: Date = Date()
     @State private var showQuickNavigation: Bool = false
     @State private var shouldScrollMonthToToday: Bool = true
     @State private var buttonDragOffset: CGSize = .zero
@@ -177,13 +177,13 @@ struct ContentView: View {
 
     private var filteredAllDayEvents: [CalendarEvent] {
         events.filter { event in
-            event.isAllDay && Calendar.current.isDate(event.startDate, inSameDayAs: currentDate)
+            event.isAllDay && Calendar.current.isDate(event.startDate, inSameDayAs: viewedDate)
         }
     }
 
     private var filteredTimedEvents: [CalendarEvent] {
         events.filter { event in
-            !event.isAllDay && Calendar.current.isDate(event.startDate, inSameDayAs: currentDate)
+            !event.isAllDay && Calendar.current.isDate(event.startDate, inSameDayAs: viewedDate)
         }
     }
 
@@ -192,7 +192,8 @@ struct ContentView: View {
             ZStack(alignment: .bottomTrailing) {
                 VStack(spacing: 0) {
                     TopNavBar(
-                        currentDate: currentDate,
+                        viewedDate: viewedDate,
+                        showQuickNavigation: showQuickNavigation,
                         onTodayTapped: {
                             animateToDate(Date())
                             shouldScrollMonthToToday = true
@@ -208,20 +209,20 @@ struct ContentView: View {
                     if showQuickNavigation {
                         VStack(spacing: 0) {
                             MonthSelector(
-                                currentDate: $currentDate,
+                                viewedDate: $viewedDate,
                                 shouldScrollToToday: $shouldScrollMonthToToday
                             )
                             Divider()
-                            QuickDateSelector(currentDate: $currentDate)
+                            QuickDateSelector(viewedDate: $viewedDate)
                             Divider()
                         }
-                        .transition(.move(edge: .top).combined(with: .opacity))
+                        .transition(.opacity)
                     }
 
                     // Day carousel with pre-rendered slides
                     ZStack {
                         // Previous day slide
-                        if let prevDay = Calendar.current.date(byAdding: .day, value: -1, to: currentDate) {
+                        if let prevDay = Calendar.current.date(byAdding: .day, value: -1, to: viewedDate) {
                             DayContentView(
                                 date: prevDay,
                                 timeSelection: $timeSelection,
@@ -234,16 +235,16 @@ struct ContentView: View {
 
                         // Current day slide
                         DayContentView(
-                            date: currentDate,
+                            date: viewedDate,
                             timeSelection: $timeSelection,
                             events: events
                         )
-                        .id("day-\(Calendar.current.startOfDay(for: currentDate).timeIntervalSince1970)")
+                        .id("day-\(Calendar.current.startOfDay(for: viewedDate).timeIntervalSince1970)")
                         .frame(width: geometry.size.width)
                         .offset(x: dayCarouselOffset)
 
                         // Next day slide
-                        if let nextDay = Calendar.current.date(byAdding: .day, value: 1, to: currentDate) {
+                        if let nextDay = Calendar.current.date(byAdding: .day, value: 1, to: viewedDate) {
                             DayContentView(
                                 date: nextDay,
                                 timeSelection: $timeSelection,
@@ -255,7 +256,7 @@ struct ContentView: View {
                         }
                     }
                     .clipped()
-                    .animation(.easeOut(duration: 0.0), value: currentDate)
+                    .animation(.easeOut(duration: 0.0), value: viewedDate)
                     .gesture(
                         DragGesture(minimumDistance: 0)
                             .onChanged { value in
@@ -307,7 +308,7 @@ struct ContentView: View {
                     EventCreationModule(
                         timeSelection: $timeSelection,
                         sheetPosition: $sheetPosition,
-                        currentDate: currentDate,
+                        viewedDate: viewedDate,
                         onAddEvent: { event in
                             events.append(event)
                         }
@@ -327,7 +328,7 @@ struct ContentView: View {
 
     private func animateToDate(_ date: Date) {
         withAnimation(AppAnimations.spring) {
-            currentDate = date
+            viewedDate = date
             dayCarouselOffset = 0
         }
     }
@@ -350,25 +351,43 @@ struct ContentView: View {
         if abs(horizontalAmount) > threshold {
             if horizontalAmount < 0 {
                 // Swipe left: go to next day
-                if let nextDay = Calendar.current.date(byAdding: .day, value: 1, to: currentDate) {
+                if let nextDay = Calendar.current.date(byAdding: .day, value: 1, to: viewedDate) {
+                    // Smoothly complete the swipe animation - the next day slides in from the right
                     withAnimation(AppAnimations.spring) {
-                        currentDate = nextDay
-                        dayCarouselOffset = 0
+                        dayCarouselOffset = -screenWidth
                     }
 
-                    // Update top nav month if month changed
-                    updateMonthIfNeeded(newDate: nextDay)
+                    // Wait for the animation to complete, THEN update the date and reset offset
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                        self.viewedDate = nextDay
+                        self.dayCarouselOffset = 0
+                        self.isDraggingDay = false
+
+                        // Update top nav month if month changed
+                        self.updateMonthIfNeeded(newDate: nextDay)
+                    }
+                } else {
+                    isDraggingDay = false
                 }
             } else {
                 // Swipe right: go to previous day
-                if let previousDay = Calendar.current.date(byAdding: .day, value: -1, to: currentDate) {
+                if let previousDay = Calendar.current.date(byAdding: .day, value: -1, to: viewedDate) {
+                    // Smoothly complete the swipe animation - the previous day slides in from the left
                     withAnimation(AppAnimations.spring) {
-                        currentDate = previousDay
-                        dayCarouselOffset = 0
+                        dayCarouselOffset = screenWidth
                     }
 
-                    // Update top nav month if month changed
-                    updateMonthIfNeeded(newDate: previousDay)
+                    // Wait for the animation to complete, THEN update the date and reset offset
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                        self.viewedDate = previousDay
+                        self.dayCarouselOffset = 0
+                        self.isDraggingDay = false
+
+                        // Update top nav month if month changed
+                        self.updateMonthIfNeeded(newDate: previousDay)
+                    }
+                } else {
+                    isDraggingDay = false
                 }
             }
         } else {
@@ -376,13 +395,12 @@ struct ContentView: View {
             withAnimation(AppAnimations.spring) {
                 dayCarouselOffset = 0
             }
+            isDraggingDay = false
         }
-
-        isDraggingDay = false
     }
 
     private func updateMonthIfNeeded(newDate: Date) {
-        // This is just for top nav bar - it will update automatically via currentDate binding
+        // This is just for top nav bar - it will update automatically via viewedDate binding
     }
 
     private func handleButtonTap() {
@@ -468,7 +486,7 @@ struct DayContentView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            DateRow(currentDate: date)
+            DateRow(viewedDate: date)
             WholeDayRow(events: filteredAllDayEvents)
             DayCanvas(
                 timeSelection: $timeSelection,
@@ -480,14 +498,15 @@ struct DayContentView: View {
 
 // MARK: - Top Nav Bar
 struct TopNavBar: View {
-    let currentDate: Date
+    let viewedDate: Date
+    let showQuickNavigation: Bool
     let onTodayTapped: () -> Void
     let onMonthTapped: () -> Void
 
     private var monthName: String {
         let formatter = DateFormatter()
         formatter.dateFormat = "MMMM"
-        return formatter.string(from: currentDate)
+        return formatter.string(from: viewedDate)
     }
 
     private var todayDayNumber: String {
@@ -509,9 +528,10 @@ struct TopNavBar: View {
                         .font(AppTypography.headline(weight: .medium))
                         .foregroundColor(AppColors.textPrimary)
 
-                    Image(systemName: "chevron.up.chevron.down")
+                    Image(systemName: "chevron.right")
                         .font(AppTypography.caption(weight: .medium))
                         .foregroundColor(AppColors.textTertiary)
+                        .rotationEffect(.degrees(showQuickNavigation ? 90 : 0))
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
@@ -569,63 +589,42 @@ struct ScaleButtonStyle: ButtonStyle {
 
 // MARK: - Date Row
 struct DateRow: View {
-    let currentDate: Date
+    let viewedDate: Date
 
     private var dayOfWeek: String {
         let formatter = DateFormatter()
         formatter.dateFormat = "EEEE" // Full day name for more elegance
-        return formatter.string(from: currentDate)
+        return formatter.string(from: viewedDate)
     }
 
     private var dayNumber: String {
         let formatter = DateFormatter()
         formatter.dateFormat = "d"
-        return formatter.string(from: currentDate)
+        return formatter.string(from: viewedDate)
     }
 
     private var monthName: String {
         let formatter = DateFormatter()
         formatter.dateFormat = "MMMM"
-        return formatter.string(from: currentDate)
+        return formatter.string(from: viewedDate)
     }
 
     var body: some View {
-        HStack(alignment: .center, spacing: 16) {
-            // UTC/Timezone Button
-            Button(action: {}) {
-                HStack(spacing: 6) {
-                    Text("UTC+1")
-                        .font(AppTypography.caption(weight: .medium))
-                        .foregroundColor(AppColors.textSecondary)
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(AppTypography.caption(weight: .regular))
-                        .foregroundColor(AppColors.textTertiary)
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(AppColors.surfaceElevated)
-                .cornerRadius(8)
-                .shadow(color: AppColors.textPrimary.opacity(0.03), radius: 4, x: 0, y: 1)
-            }
-            .buttonStyle(ScaleButtonStyle())
+        // Date Display - Elegant and spacious
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(dayOfWeek)
+                .font(AppTypography.body(weight: .regular))
+                .foregroundColor(AppColors.textSecondary)
 
-            Spacer()
+            Text(dayNumber)
+                .font(AppTypography.largeTitle(weight: .medium))
+                .foregroundColor(AppColors.textPrimary)
 
-            // Date Display - Elegant and spacious
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(dayOfWeek)
-                    .font(AppTypography.body(weight: .regular))
-                    .foregroundColor(AppColors.textSecondary)
-
-                Text(dayNumber)
-                    .font(AppTypography.largeTitle(weight: .medium))
-                    .foregroundColor(AppColors.textPrimary)
-
-                Text(monthName)
-                    .font(AppTypography.body(weight: .regular))
-                    .foregroundColor(AppColors.textSecondary)
-            }
+            Text(monthName)
+                .font(AppTypography.body(weight: .regular))
+                .foregroundColor(AppColors.textSecondary)
         }
+        .frame(maxWidth: .infinity)
         .padding(.horizontal, 20)
         .padding(.vertical, 16)
         .background(AppColors.surface)
@@ -634,14 +633,22 @@ struct DateRow: View {
 
 // MARK: - Quick Date Selector
 struct QuickDateSelector: View {
-    @Binding var currentDate: Date
+    @Binding var viewedDate: Date
     let today: Date = Date()
 
     @State private var dragOffset: CGFloat = 0
-    @State private var displayMonth: Date = Date()
+    @State private var displayMonth: Date
     @State private var isDragging: Bool = false
 
     private let calendar = Calendar.current
+
+    init(viewedDate: Binding<Date>) {
+        self._viewedDate = viewedDate
+        // Initialize displayMonth to the first of the viewed month
+        let calendar = Calendar.current
+        let firstOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: viewedDate.wrappedValue)) ?? Date()
+        self._displayMonth = State(initialValue: firstOfMonth)
+    }
 
     private var weekDays: [String] {
         let formatter = DateFormatter()
@@ -682,47 +689,47 @@ struct QuickDateSelector: View {
 
             // Carousel of month grids
             GeometryReader { geometry in
-                ZStack {
-                    // Previous month (pre-rendered, shown only when dragging right)
+                ZStack(alignment: .top) {
+                    // Previous month (pre-rendered, shown when swiping right)
                     if let prevMonth = calendar.date(byAdding: .month, value: -1, to: displayMonth) {
                         MonthGridView(
                             month: prevMonth,
-                            currentDate: currentDate,
+                            viewedDate: viewedDate,
                             today: today,
                             onDateTap: { date in
-                                currentDate = date
+                                viewedDate = date
                             }
                         )
                         .frame(width: geometry.size.width)
                         .offset(x: -geometry.size.width + dragOffset)
-                        .opacity(isDragging && dragOffset > 0 ? 1 : 0)
+                        .opacity(dragOffset > 0 ? 1 : 0)
                     }
 
                     // Current month (main/centered grid)
                     MonthGridView(
                         month: displayMonth,
-                        currentDate: currentDate,
+                        viewedDate: viewedDate,
                         today: today,
                         onDateTap: { date in
-                            currentDate = date
+                            viewedDate = date
                         }
                     )
                     .frame(width: geometry.size.width)
                     .offset(x: dragOffset)
 
-                    // Next month (pre-rendered, shown only when dragging left)
+                    // Next month (pre-rendered, shown when swiping left)
                     if let nextMonth = calendar.date(byAdding: .month, value: 1, to: displayMonth) {
                         MonthGridView(
                             month: nextMonth,
-                            currentDate: currentDate,
+                            viewedDate: viewedDate,
                             today: today,
                             onDateTap: { date in
-                                currentDate = date
+                                viewedDate = date
                             }
                         )
                         .frame(width: geometry.size.width)
                         .offset(x: geometry.size.width + dragOffset)
-                        .opacity(isDragging && dragOffset < 0 ? 1 : 0)
+                        .opacity(dragOffset < 0 ? 1 : 0)
                     }
                 }
                 .clipped()
@@ -748,13 +755,13 @@ struct QuickDateSelector: View {
         .animation(nil, value: numberOfWeeks) // Prevent bounce on height change
         .frame(height: dynamicHeight)
         .onAppear {
-            // Initialize display month to current date's month
-            if let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: currentDate)) {
+            // Initialize display month to viewed date's month
+            if let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: viewedDate)) {
                 displayMonth = monthStart
             }
         }
-        .onChange(of: currentDate) { _, newValue in
-            // Update display month when current date changes from external source (e.g., month selector)
+        .onChange(of: viewedDate) { _, newValue in
+            // Update display month when viewed date changes from external source (e.g., month selector)
             if !calendar.isDate(newValue, equalTo: displayMonth, toGranularity: .month) {
                 // No animation - just update state to prevent bounce
                 if let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: newValue)) {
@@ -765,18 +772,40 @@ struct QuickDateSelector: View {
     }
 
     private func handleSwipe(_ gesture: DragGesture.Value, screenWidth: CGFloat) {
-        let threshold: CGFloat = screenWidth * 0.4 // Need to drag 40% to trigger
+        let threshold: CGFloat = screenWidth * 0.3
         let velocity = gesture.predictedEndTranslation.width - gesture.translation.width
 
-        // Check velocity for quick swipes OR distance for slow drags
         let shouldNavigate = abs(gesture.translation.width) > threshold || abs(velocity) > 500
 
         if gesture.translation.width < 0 && shouldNavigate {
             // Swipe left: next month
-            if let nextMonth = calendar.date(byAdding: .month, value: 1, to: displayMonth) {
-                withAnimation(AppAnimations.spring) {
-                    displayMonth = nextMonth
-                    dragOffset = 0
+            if let nextMonthBase = calendar.date(byAdding: .month, value: 1, to: displayMonth) {
+                // Get the first day of the next month
+                let components = calendar.dateComponents([.year, .month], from: nextMonthBase)
+                if let nextMonth = calendar.date(from: components) {
+                    // Smoothly complete the swipe animation - the next month grid slides in from the right
+                    withAnimation(AppAnimations.spring) {
+                        dragOffset = -screenWidth
+                    }
+
+                    // Wait for the animation to complete, THEN update the month and reset offset
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                        // Disable all animations for the state update to prevent date cells from animating
+                        var transaction = Transaction()
+                        transaction.disablesAnimations = true
+                        withTransaction(transaction) {
+                            // If swiping to today's month, select today; otherwise select 1st of month
+                            if self.calendar.isDate(nextMonth, equalTo: self.today, toGranularity: .month) {
+                                self.viewedDate = self.today
+                            } else {
+                                self.viewedDate = nextMonth
+                            }
+
+                            // Reset display month and offset instantly (no animation)
+                            self.displayMonth = nextMonth
+                            self.dragOffset = 0
+                        }
+                    }
                 }
             } else {
                 withAnimation(AppAnimations.spring) {
@@ -785,10 +814,33 @@ struct QuickDateSelector: View {
             }
         } else if gesture.translation.width > 0 && shouldNavigate {
             // Swipe right: previous month
-            if let prevMonth = calendar.date(byAdding: .month, value: -1, to: displayMonth) {
-                withAnimation(AppAnimations.spring) {
-                    displayMonth = prevMonth
-                    dragOffset = 0
+            if let prevMonthBase = calendar.date(byAdding: .month, value: -1, to: displayMonth) {
+                // Get the first day of the previous month
+                let components = calendar.dateComponents([.year, .month], from: prevMonthBase)
+                if let prevMonth = calendar.date(from: components) {
+                    // Smoothly complete the swipe animation - the previous month grid slides in from the left
+                    withAnimation(AppAnimations.spring) {
+                        dragOffset = screenWidth
+                    }
+
+                    // Wait for the animation to complete, THEN update the month and reset offset
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                        // Disable all animations for the state update to prevent date cells from animating
+                        var transaction = Transaction()
+                        transaction.disablesAnimations = true
+                        withTransaction(transaction) {
+                            // If swiping to today's month, select today; otherwise select 1st of month
+                            if self.calendar.isDate(prevMonth, equalTo: self.today, toGranularity: .month) {
+                                self.viewedDate = self.today
+                            } else {
+                                self.viewedDate = prevMonth
+                            }
+
+                            // Reset display month and offset instantly (no animation)
+                            self.displayMonth = prevMonth
+                            self.dragOffset = 0
+                        }
+                    }
                 }
             } else {
                 withAnimation(AppAnimations.spring) {
@@ -807,7 +859,7 @@ struct QuickDateSelector: View {
 // MARK: - Month Grid View
 struct MonthGridView: View {
     let month: Date
-    let currentDate: Date
+    let viewedDate: Date
     let today: Date
     let onDateTap: (Date) -> Void
 
@@ -843,7 +895,7 @@ struct MonthGridView: View {
                 if let date = date {
                     DateCellButton(
                         date: date,
-                        currentDate: currentDate,
+                        viewedDate: viewedDate,
                         today: today,
                         onTap: {
                             onDateTap(date)
@@ -861,7 +913,7 @@ struct MonthGridView: View {
 
 struct DateCellButton: View {
     let date: Date
-    let currentDate: Date
+    let viewedDate: Date
     let today: Date
     let onTap: () -> Void
 
@@ -874,7 +926,7 @@ struct DateCellButton: View {
     }
 
     private var isSelected: Bool {
-        calendar.isDate(date, inSameDayAs: currentDate)
+        calendar.isDate(date, inSameDayAs: viewedDate)
     }
 
     private var isToday: Bool {
@@ -907,7 +959,7 @@ struct DateCellButton: View {
 
 // MARK: - Month Selector
 struct MonthSelector: View {
-    @Binding var currentDate: Date
+    @Binding var viewedDate: Date
     @Binding var shouldScrollToToday: Bool
     let today: Date = Date()
 
@@ -916,9 +968,9 @@ struct MonthSelector: View {
     private var months: [(date: Date, name: String, isYear: Bool)] {
         var result: [(date: Date, name: String, isYear: Bool)] = []
 
-        // Generate 36 months: 24 before today and 12 after today
-        // This allows scrolling to previous months
-        for offset in -24...12 {
+        // Generate 240 months: 120 before today and 120 after today (20 years total)
+        // This creates a virtually infinite scrolling experience
+        for offset in -120...120 {
             if let monthDate = calendar.date(byAdding: .month, value: offset, to: today) {
                 let formatter = DateFormatter()
                 formatter.dateFormat = "MMM"
@@ -956,9 +1008,9 @@ struct MonthSelector: View {
                             MonthButton(
                                 monthDate: item.date,
                                 monthName: item.name,
-                                currentDate: currentDate,
+                                viewedDate: viewedDate,
                                 onTap: {
-                                    currentDate = item.date
+                                    viewedDate = item.date
                                 }
                             )
                             .id(index)
@@ -998,13 +1050,13 @@ struct MonthSelector: View {
 struct MonthButton: View {
     let monthDate: Date
     let monthName: String
-    let currentDate: Date
+    let viewedDate: Date
     let onTap: () -> Void
 
     private let calendar = Calendar.current
 
     private var isSelected: Bool {
-        calendar.isDate(monthDate, equalTo: currentDate, toGranularity: .month)
+        calendar.isDate(monthDate, equalTo: viewedDate, toGranularity: .month)
     }
 
     var body: some View {
@@ -1399,7 +1451,7 @@ enum SheetPosition {
 struct EventCreationModule: View {
     @Binding var timeSelection: TimeSelection?
     @Binding var sheetPosition: SheetPosition
-    let currentDate: Date
+    let viewedDate: Date
     let onAddEvent: (CalendarEvent) -> Void
 
     @State private var title: String = ""
@@ -1732,8 +1784,8 @@ struct EventCreationModule: View {
         .onChange(of: sheetPosition) { _, newValue in
             // Initialize dates when sheet opens
             if newValue == .expanded && !hasInitialized {
-                startDate = currentDate
-                endDate = currentDate
+                startDate = viewedDate
+                endDate = viewedDate
                 hasInitialized = true
 
                 // Auto-focus title field when expanding
@@ -2013,6 +2065,7 @@ struct DatePickerCalendarModule: View {
     @State private var tempSelectedDate: Date
     @State private var dragOffset: CGFloat = 0
     @State private var slideDirection: SlideDirection = .none
+    @State private var containerWidth: CGFloat = 0
 
     enum SlideDirection {
         case none, left, right
@@ -2105,8 +2158,9 @@ struct DatePickerCalendarModule: View {
                     }
                 }
                 .clipped()
-                .gesture(
-                    DragGesture()
+                .contentShape(Rectangle())
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 10)
                         .onChanged { value in
                             dragOffset = value.translation.width
                         }
@@ -2114,6 +2168,9 @@ struct DatePickerCalendarModule: View {
                             handleSwipe(value, screenWidth: geometry.size.width)
                         }
                 )
+                .onAppear {
+                    containerWidth = geometry.size.width
+                }
             }
             .frame(height: 280)
             .padding(.horizontal, 20)
@@ -2174,19 +2231,31 @@ struct DatePickerCalendarModule: View {
     }
 
     private func previousMonth() {
-        withAnimation(AppAnimations.easeInOut) {
-            slideDirection = .right
-            if let newMonth = Calendar.current.date(byAdding: .month, value: -1, to: displayedMonth) {
-                displayedMonth = newMonth
+        if let newMonth = Calendar.current.date(byAdding: .month, value: -1, to: displayedMonth) {
+            // Animate slide to the right (previous month comes from left)
+            withAnimation(AppAnimations.spring) {
+                dragOffset = containerWidth
+            }
+
+            // Wait for animation to complete, then update month and reset
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                self.displayedMonth = newMonth
+                self.dragOffset = 0
             }
         }
     }
 
     private func nextMonth() {
-        withAnimation(AppAnimations.easeInOut) {
-            slideDirection = .left
-            if let newMonth = Calendar.current.date(byAdding: .month, value: 1, to: displayedMonth) {
-                displayedMonth = newMonth
+        if let newMonth = Calendar.current.date(byAdding: .month, value: 1, to: displayedMonth) {
+            // Animate slide to the left (next month comes from right)
+            withAnimation(AppAnimations.spring) {
+                dragOffset = -containerWidth
+            }
+
+            // Wait for animation to complete, then update month and reset
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                self.displayedMonth = newMonth
+                self.dragOffset = 0
             }
         }
     }
@@ -2197,9 +2266,20 @@ struct DatePickerCalendarModule: View {
         if gesture.translation.width < -threshold {
             // Swipe left: next month
             if let nextMonth = Calendar.current.date(byAdding: .month, value: 1, to: displayedMonth) {
+                // Smoothly complete the swipe animation - the next month slides in from the right
                 withAnimation(AppAnimations.spring) {
-                    displayedMonth = nextMonth
-                    dragOffset = 0
+                    dragOffset = -screenWidth
+                }
+
+                // Wait for the animation to complete, THEN update the month and reset offset
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                    // Disable all animations for the state update to prevent date cells from animating
+                    var transaction = Transaction()
+                    transaction.disablesAnimations = true
+                    withTransaction(transaction) {
+                        self.displayedMonth = nextMonth
+                        self.dragOffset = 0
+                    }
                 }
             } else {
                 withAnimation(AppAnimations.spring) {
@@ -2209,9 +2289,20 @@ struct DatePickerCalendarModule: View {
         } else if gesture.translation.width > threshold {
             // Swipe right: previous month
             if let prevMonth = Calendar.current.date(byAdding: .month, value: -1, to: displayedMonth) {
+                // Smoothly complete the swipe animation - the previous month slides in from the left
                 withAnimation(AppAnimations.spring) {
-                    displayedMonth = prevMonth
-                    dragOffset = 0
+                    dragOffset = screenWidth
+                }
+
+                // Wait for the animation to complete, THEN update the month and reset offset
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                    // Disable all animations for the state update to prevent date cells from animating
+                    var transaction = Transaction()
+                    transaction.disablesAnimations = true
+                    withTransaction(transaction) {
+                        self.displayedMonth = prevMonth
+                        self.dragOffset = 0
+                    }
                 }
             } else {
                 withAnimation(AppAnimations.spring) {
