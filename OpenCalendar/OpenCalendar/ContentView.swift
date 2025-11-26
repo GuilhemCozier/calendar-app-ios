@@ -7,6 +7,103 @@
 
 import SwiftUI
 
+// MARK: - Design System
+struct AppColors {
+    // Cream backgrounds - warm but subtle
+    static let background = Color(hex: "#F5F3EE")
+    static let surface = Color(hex: "#FDFCFA")
+    static let surfaceElevated = Color.white
+
+    // Sage green accent
+    static let accent = Color(hex: "#8B9D83")
+    static let accentLight = Color(hex: "#A8B89F")
+    static let accentSubtle = Color(hex: "#E8EBE6")
+
+    // Neutrals
+    static let textPrimary = Color(hex: "#1A1A1A")
+    static let textSecondary = Color(hex: "#666666")
+    static let textTertiary = Color(hex: "#999999")
+    static let border = Color(hex: "#E6E3DD")
+    static let borderSubtle = Color(hex: "#F0EDE7")
+
+    // Semantic
+    static let eventBlue = Color(hex: "#7B93B3")
+    static let eventBlueBg = Color(hex: "#E8EDF3")
+}
+
+struct AppTypography {
+    // SF Pro with refined weights
+    static func largeTitle(weight: Font.Weight = .semibold) -> Font {
+        .system(size: 28, weight: weight, design: .default)
+    }
+
+    static func title(weight: Font.Weight = .semibold) -> Font {
+        .system(size: 20, weight: weight, design: .default)
+    }
+
+    static func headline(weight: Font.Weight = .medium) -> Font {
+        .system(size: 17, weight: weight, design: .default)
+    }
+
+    static func body(weight: Font.Weight = .regular) -> Font {
+        .system(size: 15, weight: weight, design: .default)
+    }
+
+    static func callout(weight: Font.Weight = .regular) -> Font {
+        .system(size: 14, weight: weight, design: .default)
+    }
+
+    static func subheadline(weight: Font.Weight = .regular) -> Font {
+        .system(size: 13, weight: weight, design: .default)
+    }
+
+    static func caption(weight: Font.Weight = .regular) -> Font {
+        .system(size: 11, weight: weight, design: .default)
+    }
+}
+
+struct AppAnimations {
+    // Spring animations (Anthropic-style: responsive but refined)
+    static let spring = Animation.spring(response: 0.35, dampingFraction: 0.75)
+    static let springQuick = Animation.spring(response: 0.25, dampingFraction: 0.8)
+
+    // Ease animations
+    static let easeOut = Animation.easeOut(duration: 0.3)
+    static let easeInOut = Animation.easeInOut(duration: 0.25)
+
+    // Alternative options (commented for testing):
+    // static let bouncy = Animation.spring(response: 0.4, dampingFraction: 0.6)
+    // static let smooth = Animation.easeInOut(duration: 0.4)
+}
+
+// Color extension for hex support
+extension Color {
+    init(hex: String) {
+        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&int)
+        let a, r, g, b: UInt64
+        switch hex.count {
+        case 3: // RGB (12-bit)
+            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
+        case 6: // RGB (24-bit)
+            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
+        case 8: // ARGB (32-bit)
+            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
+        default:
+            (a, r, g, b) = (1, 1, 1, 0)
+        }
+
+        self.init(
+            .sRGB,
+            red: Double(r) / 255,
+            green: Double(g) / 255,
+            blue:  Double(b) / 255,
+            opacity: Double(a) / 255
+        )
+    }
+}
+
 // MARK: - Time Selection State
 struct TimeSelection: Equatable {
     var startSlotIndex: Int  // 0-95 (96 slots of 15 minutes)
@@ -101,7 +198,7 @@ struct ContentView: View {
                             shouldScrollMonthToToday = true
                         },
                         onMonthTapped: {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            withAnimation(AppAnimations.spring) {
                                 showQuickNavigation.toggle()
                             }
                         }
@@ -217,7 +314,7 @@ struct ContentView: View {
                     )
                 }
             }
-            .background(Color.white)
+            .background(AppColors.background)
             .onChange(of: timeSelection) { _, newValue in
                 if newValue != nil {
                     sheetPosition = .peek
@@ -229,7 +326,7 @@ struct ContentView: View {
     }
 
     private func animateToDate(_ date: Date) {
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+        withAnimation(AppAnimations.spring) {
             currentDate = date
             dayCarouselOffset = 0
         }
@@ -241,7 +338,7 @@ struct ContentView: View {
 
         // Only handle horizontal swipes
         guard abs(horizontalAmount) > verticalAmount else {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            withAnimation(AppAnimations.spring) {
                 dayCarouselOffset = 0
                 isDraggingDay = false
             }
@@ -254,7 +351,7 @@ struct ContentView: View {
             if horizontalAmount < 0 {
                 // Swipe left: go to next day
                 if let nextDay = Calendar.current.date(byAdding: .day, value: 1, to: currentDate) {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    withAnimation(AppAnimations.spring) {
                         currentDate = nextDay
                         dayCarouselOffset = 0
                     }
@@ -265,7 +362,7 @@ struct ContentView: View {
             } else {
                 // Swipe right: go to previous day
                 if let previousDay = Calendar.current.date(byAdding: .day, value: -1, to: currentDate) {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    withAnimation(AppAnimations.spring) {
                         currentDate = previousDay
                         dayCarouselOffset = 0
                     }
@@ -276,7 +373,7 @@ struct ContentView: View {
             }
         } else {
             // Snap back
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            withAnimation(AppAnimations.spring) {
                 dayCarouselOffset = 0
             }
         }
@@ -305,7 +402,7 @@ struct ContentView: View {
             endSlotIndex: endSlotIndex
         )
 
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+        withAnimation(AppAnimations.spring) {
             sheetPosition = .expanded
         }
     }
@@ -336,13 +433,13 @@ struct ContentView: View {
                 endSlotIndex: endSlotIndex
             )
 
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            withAnimation(AppAnimations.spring) {
                 sheetPosition = .expanded
             }
         }
 
         // Reset button position
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+        withAnimation(AppAnimations.spring) {
             buttonDragOffset = .zero
             isDraggingButton = false
         }
@@ -400,45 +497,73 @@ struct TopNavBar: View {
     }
 
     var body: some View {
-        HStack {
-            // Left side
+        HStack(spacing: 0) {
+            // Left side - Month selector
             Button(action: onMonthTapped) {
-                HStack(spacing: 12) {
+                HStack(spacing: 10) {
                     Image(systemName: "line.3.horizontal")
-                        .font(.system(size: 18))
-                        .foregroundColor(.black)
+                        .font(AppTypography.body(weight: .regular))
+                        .foregroundColor(AppColors.textSecondary)
 
                     Text(monthName)
-                        .font(.system(size: 15))
-                        .foregroundColor(.black)
+                        .font(AppTypography.headline(weight: .medium))
+                        .foregroundColor(AppColors.textPrimary)
 
                     Image(systemName: "chevron.up.chevron.down")
-                        .font(.system(size: 10))
-                        .foregroundColor(.black)
+                        .font(AppTypography.caption(weight: .medium))
+                        .foregroundColor(AppColors.textTertiary)
                 }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(AppColors.surfaceElevated)
+                .cornerRadius(10)
+                .shadow(color: AppColors.textPrimary.opacity(0.04), radius: 8, x: 0, y: 2)
             }
+            .buttonStyle(ScaleButtonStyle())
 
             Spacer()
 
-            // Right side
-            HStack(spacing: 16) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 18))
-                    .foregroundColor(.black)
+            // Right side - Actions
+            HStack(spacing: 12) {
+                Button(action: {}) {
+                    Image(systemName: "magnifyingglass")
+                        .font(AppTypography.body(weight: .regular))
+                        .foregroundColor(AppColors.textSecondary)
+                        .frame(width: 38, height: 38)
+                        .background(AppColors.surfaceElevated)
+                        .cornerRadius(10)
+                        .shadow(color: AppColors.textPrimary.opacity(0.04), radius: 8, x: 0, y: 2)
+                }
+                .buttonStyle(ScaleButtonStyle())
 
                 Button(action: onTodayTapped) {
                     Text(todayDayNumber)
-                        .font(.system(size: 14))
-                        .foregroundColor(.black)
-                        .frame(width: 32, height: 32)
-                        .background(Color.gray.opacity(0.1))
-                        .cornerRadius(8)
+                        .font(AppTypography.callout(weight: .medium))
+                        .foregroundColor(AppColors.textPrimary)
+                        .frame(width: 38, height: 38)
+                        .background(AppColors.accentSubtle)
+                        .cornerRadius(10)
+                        .shadow(color: AppColors.accent.opacity(0.08), radius: 8, x: 0, y: 2)
                 }
+                .buttonStyle(ScaleButtonStyle())
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(Color.white)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 16)
+        .background(
+            AppColors.surface
+                .shadow(color: AppColors.textPrimary.opacity(0.03), radius: 1, x: 0, y: 1)
+        )
+    }
+}
+
+// MARK: - Button Styles
+struct ScaleButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
+            .animation(AppAnimations.springQuick, value: configuration.isPressed)
+            // Alternative: .animation(.spring(response: 0.3, dampingFraction: 0.5), value: configuration.isPressed) // Bouncy
     }
 }
 
@@ -448,7 +573,7 @@ struct DateRow: View {
 
     private var dayOfWeek: String {
         let formatter = DateFormatter()
-        formatter.dateFormat = "EEE"
+        formatter.dateFormat = "EEEE" // Full day name for more elegance
         return formatter.string(from: currentDate)
     }
 
@@ -458,37 +583,52 @@ struct DateRow: View {
         return formatter.string(from: currentDate)
     }
 
+    private var monthName: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMMM"
+        return formatter.string(from: currentDate)
+    }
+
     var body: some View {
-        HStack {
-            // UTC Button
-            HStack(spacing: 4) {
-                Text("UTC+1")
-                    .font(.system(size: 11))
-                    .foregroundColor(.black)
-                Image(systemName: "chevron.up.chevron.down")
-                    .font(.system(size: 8))
-                    .foregroundColor(.black)
+        HStack(alignment: .center, spacing: 16) {
+            // UTC/Timezone Button
+            Button(action: {}) {
+                HStack(spacing: 6) {
+                    Text("UTC+1")
+                        .font(AppTypography.caption(weight: .medium))
+                        .foregroundColor(AppColors.textSecondary)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(AppTypography.caption(weight: .regular))
+                        .foregroundColor(AppColors.textTertiary)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(AppColors.surfaceElevated)
+                .cornerRadius(8)
+                .shadow(color: AppColors.textPrimary.opacity(0.03), radius: 4, x: 0, y: 1)
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(Color.gray.opacity(0.1))
-            .cornerRadius(6)
+            .buttonStyle(ScaleButtonStyle())
 
             Spacer()
 
-            // Date Container
-            VStack(spacing: 2) {
+            // Date Display - Elegant and spacious
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(dayOfWeek)
-                    .font(.system(size: 12))
-                    .foregroundColor(.black)
+                    .font(AppTypography.body(weight: .regular))
+                    .foregroundColor(AppColors.textSecondary)
+
                 Text(dayNumber)
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundColor(.black)
+                    .font(AppTypography.largeTitle(weight: .medium))
+                    .foregroundColor(AppColors.textPrimary)
+
+                Text(monthName)
+                    .font(AppTypography.body(weight: .regular))
+                    .foregroundColor(AppColors.textSecondary)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .background(Color.white)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 16)
+        .background(AppColors.surface)
     }
 }
 
@@ -499,6 +639,7 @@ struct QuickDateSelector: View {
 
     @State private var dragOffset: CGFloat = 0
     @State private var displayMonth: Date = Date()
+    @State private var isDragging: Bool = false
 
     private let calendar = Calendar.current
 
@@ -511,23 +652,38 @@ struct QuickDateSelector: View {
         }
     }
 
-    var body: some View {
-        GeometryReader { geometry in
-            VStack(spacing: 8) {
-                // Week days header
-                HStack(spacing: 0) {
-                    ForEach(weekDays, id: \.self) { day in
-                        Text(day)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(.gray)
-                            .frame(maxWidth: .infinity)
-                    }
-                }
-                .padding(.horizontal, 16)
+    // Calculate number of weeks for dynamic height
+    private var numberOfWeeks: Int {
+        guard let range = calendar.range(of: .weekOfMonth, in: .month, for: displayMonth) else {
+            return 5
+        }
+        return range.count
+    }
 
-                // Carousel of month grids
+    private var dynamicHeight: CGFloat {
+        let weekHeaderHeight: CGFloat = 20
+        let rowHeight: CGFloat = 40
+        let verticalPadding: CGFloat = 32
+        return weekHeaderHeight + (CGFloat(numberOfWeeks) * rowHeight) + verticalPadding
+    }
+
+    var body: some View {
+        VStack(spacing: 8) {
+            // Week days header
+            HStack(spacing: 0) {
+                ForEach(weekDays, id: \.self) { day in
+                    Text(day)
+                        .font(AppTypography.caption(weight: .semibold))
+                        .foregroundColor(AppColors.textTertiary)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+            .padding(.horizontal, 20)
+
+            // Carousel of month grids
+            GeometryReader { geometry in
                 ZStack {
-                    // Previous month
+                    // Previous month (pre-rendered, shown only when dragging right)
                     if let prevMonth = calendar.date(byAdding: .month, value: -1, to: displayMonth) {
                         MonthGridView(
                             month: prevMonth,
@@ -539,9 +695,10 @@ struct QuickDateSelector: View {
                         )
                         .frame(width: geometry.size.width)
                         .offset(x: -geometry.size.width + dragOffset)
+                        .opacity(isDragging && dragOffset > 0 ? 1 : 0)
                     }
 
-                    // Current month
+                    // Current month (main/centered grid)
                     MonthGridView(
                         month: displayMonth,
                         currentDate: currentDate,
@@ -553,7 +710,7 @@ struct QuickDateSelector: View {
                     .frame(width: geometry.size.width)
                     .offset(x: dragOffset)
 
-                    // Next month
+                    // Next month (pre-rendered, shown only when dragging left)
                     if let nextMonth = calendar.date(byAdding: .month, value: 1, to: displayMonth) {
                         MonthGridView(
                             month: nextMonth,
@@ -565,23 +722,31 @@ struct QuickDateSelector: View {
                         )
                         .frame(width: geometry.size.width)
                         .offset(x: geometry.size.width + dragOffset)
+                        .opacity(isDragging && dragOffset < 0 ? 1 : 0)
                     }
                 }
                 .clipped()
-                .gesture(
-                    DragGesture()
+                .contentShape(Rectangle())
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 10)
                         .onChanged { value in
+                            isDragging = true
+                            // Sticky to finger - follows proportionally
                             dragOffset = value.translation.width
                         }
                         .onEnded { value in
                             handleSwipe(value, screenWidth: geometry.size.width)
+                            isDragging = false
                         }
                 )
             }
-            .padding(.vertical, 12)
-            .background(Color.white)
+            .frame(height: CGFloat(numberOfWeeks) * 40)
         }
-        .frame(height: 280)
+        .padding(.vertical, 16)
+        .background(AppColors.surface)
+        .animation(nil, value: displayMonth) // Prevent bounce - don't animate layout changes
+        .animation(nil, value: numberOfWeeks) // Prevent bounce on height change
+        .frame(height: dynamicHeight)
         .onAppear {
             // Initialize display month to current date's month
             if let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: currentDate)) {
@@ -591,45 +756,48 @@ struct QuickDateSelector: View {
         .onChange(of: currentDate) { _, newValue in
             // Update display month when current date changes from external source (e.g., month selector)
             if !calendar.isDate(newValue, equalTo: displayMonth, toGranularity: .month) {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                    if let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: newValue)) {
-                        displayMonth = monthStart
-                    }
+                // No animation - just update state to prevent bounce
+                if let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: newValue)) {
+                    displayMonth = monthStart
                 }
             }
         }
     }
 
     private func handleSwipe(_ gesture: DragGesture.Value, screenWidth: CGFloat) {
-        let threshold: CGFloat = screenWidth * 0.3
+        let threshold: CGFloat = screenWidth * 0.4 // Need to drag 40% to trigger
+        let velocity = gesture.predictedEndTranslation.width - gesture.translation.width
 
-        if gesture.translation.width < -threshold {
+        // Check velocity for quick swipes OR distance for slow drags
+        let shouldNavigate = abs(gesture.translation.width) > threshold || abs(velocity) > 500
+
+        if gesture.translation.width < 0 && shouldNavigate {
             // Swipe left: next month
             if let nextMonth = calendar.date(byAdding: .month, value: 1, to: displayMonth) {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                withAnimation(AppAnimations.spring) {
                     displayMonth = nextMonth
                     dragOffset = 0
                 }
             } else {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                withAnimation(AppAnimations.spring) {
                     dragOffset = 0
                 }
             }
-        } else if gesture.translation.width > threshold {
+        } else if gesture.translation.width > 0 && shouldNavigate {
             // Swipe right: previous month
             if let prevMonth = calendar.date(byAdding: .month, value: -1, to: displayMonth) {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                withAnimation(AppAnimations.spring) {
                     displayMonth = prevMonth
                     dragOffset = 0
                 }
             } else {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                withAnimation(AppAnimations.spring) {
                     dragOffset = 0
                 }
             }
         } else {
-            // Snap back
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            // Snap back to center
+            withAnimation(AppAnimations.spring) {
                 dragOffset = 0
             }
         }
@@ -651,8 +819,12 @@ struct MonthGridView: View {
             return []
         }
 
+        // Calculate leading empty days
+        // firstWeekday: 1 = Sunday, 2 = Monday, etc.
+        // We want Monday as first day of week (2)
         let firstWeekday = calendar.component(.weekday, from: monthStart)
-        let leadingEmptyDays = (firstWeekday - calendar.firstWeekday + 7) % 7
+        // Convert to 0-indexed where Monday = 0
+        let leadingEmptyDays = (firstWeekday == 1) ? 6 : (firstWeekday - 2)
 
         var dates: [Date?] = Array(repeating: nil, count: leadingEmptyDays)
 
@@ -683,7 +855,7 @@ struct MonthGridView: View {
                 }
             }
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 20)
     }
 }
 
@@ -712,15 +884,24 @@ struct DateCellButton: View {
     var body: some View {
         Button(action: onTap) {
             Text(dayNumber)
-                .font(.system(size: 14, weight: isSelected ? .semibold : .regular))
-                .foregroundColor(isSelected ? .white : (isToday ? .blue : .black))
-                .frame(height: 32)
+                .font(AppTypography.callout(weight: isSelected ? .semibold : .regular))
+                .foregroundColor(isSelected ? AppColors.surfaceElevated : (isToday ? AppColors.accent : AppColors.textPrimary))
+                .frame(height: 36)
                 .frame(maxWidth: .infinity)
                 .background(
-                    isSelected ? Color.blue : (isToday ? Color.blue.opacity(0.1) : Color.clear)
+                    Group {
+                        if isSelected {
+                            AppColors.accent
+                        } else if isToday {
+                            AppColors.accentSubtle
+                        } else {
+                            Color.clear
+                        }
+                    }
                 )
-                .cornerRadius(16)
+                .cornerRadius(10)
         }
+        .buttonStyle(ScaleButtonStyle())
     }
 }
 
@@ -786,8 +967,8 @@ struct MonthSelector: View {
                 }
                 .padding(.horizontal, 16)
             }
-            .frame(height: 44)
-            .background(Color.white)
+            .frame(height: 48)
+            .background(AppColors.surface)
             .onAppear {
                 // Only scroll to today's month on initial appear
                 if shouldScrollToToday {
@@ -829,13 +1010,15 @@ struct MonthButton: View {
     var body: some View {
         Button(action: onTap) {
             Text(monthName)
-                .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
-                .foregroundColor(isSelected ? .white : .black)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(isSelected ? Color.blue : Color.gray.opacity(0.1))
-                .cornerRadius(16)
+                .font(AppTypography.subheadline(weight: isSelected ? .semibold : .medium))
+                .foregroundColor(isSelected ? AppColors.surfaceElevated : AppColors.textPrimary)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(isSelected ? AppColors.accent : AppColors.surfaceElevated)
+                .cornerRadius(10)
+                .shadow(color: isSelected ? AppColors.accent.opacity(0.15) : AppColors.textPrimary.opacity(0.03), radius: isSelected ? 6 : 3, x: 0, y: isSelected ? 3 : 1)
         }
+        .buttonStyle(ScaleButtonStyle())
     }
 }
 
@@ -847,13 +1030,13 @@ struct WholeDayRow: View {
         HStack(alignment: .top, spacing: 0) {
             // Left: "All day" label
             Text("All day")
-                .font(.system(size: 11))
-                .foregroundColor(.black)
-                .frame(width: 60, alignment: .trailing)
-                .padding(.trailing, 8)
+                .font(AppTypography.caption(weight: .medium))
+                .foregroundColor(AppColors.textTertiary)
+                .frame(width: 65, alignment: .trailing)
+                .padding(.trailing, 12)
 
             // Right: All-day events
-            VStack(spacing: 4) {
+            VStack(spacing: 6) {
                 ForEach(events) { event in
                     AllDayEventView(event: event)
                 }
@@ -861,15 +1044,18 @@ struct WholeDayRow: View {
                 if events.isEmpty {
                     Rectangle()
                         .fill(Color.clear)
-                        .frame(height: 40)
+                        .frame(height: 44)
                 }
             }
             .overlay(alignment: .bottom) {
-                Divider()
+                Rectangle()
+                    .fill(AppColors.borderSubtle)
+                    .frame(height: 1)
             }
         }
-        .padding(.horizontal, 16)
-        .background(Color.white)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 12)
+        .background(AppColors.surface)
     }
 }
 
@@ -880,16 +1066,15 @@ struct AllDayEventView: View {
     var body: some View {
         HStack {
             Text(event.title)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(.white)
+                .font(AppTypography.subheadline(weight: .medium))
+                .foregroundColor(AppColors.eventBlue)
                 .lineLimit(1)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(height: 20)
-        .background(Color.blue.opacity(0.8))
-        .cornerRadius(4)
+        .background(AppColors.eventBlueBg)
+        .cornerRadius(8)
     }
 }
 
@@ -900,7 +1085,7 @@ struct DayCanvas: View {
     private let hours = Array(0..<24)
 
     var body: some View {
-        ScrollView {
+        ScrollView(showsIndicators: false) {
             HStack(alignment: .top, spacing: 0) {
                 // Left column: Hour labels
                 VStack(alignment: .trailing, spacing: 0) {
@@ -908,7 +1093,7 @@ struct DayCanvas: View {
                         HourLabel(hour: hour)
                     }
                 }
-                .frame(width: 60)
+                .frame(width: 65)
 
                 // Right column: Time slots with overlay
                 ZStack(alignment: .topLeading) {
@@ -937,8 +1122,10 @@ struct DayCanvas: View {
                     }
                 }
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 20)
+            .padding(.top, 8)
         }
+        .background(AppColors.surface)
     }
 
     private func handleSlotTap(slotIndex: Int) {
@@ -963,11 +1150,11 @@ struct HourLabel: View {
 
     var body: some View {
         Text(timeString)
-            .font(.system(size: 11))
-            .foregroundColor(.black)
+            .font(AppTypography.caption(weight: .regular))
+            .foregroundColor(AppColors.textTertiary)
             .frame(height: 60, alignment: .top)
-            .padding(.trailing, 8)
-            .offset(y: -6)
+            .padding(.trailing, 12)
+            .offset(y: -7)
     }
 }
 
@@ -985,8 +1172,9 @@ struct TimeSlotRow: View {
             .frame(height: 15)
             .overlay(alignment: .bottom) {
                 if showBorder {
-                    Divider()
-                        .background(Color.gray.opacity(0.2))
+                    Rectangle()
+                        .fill(AppColors.borderSubtle)
+                        .frame(height: 1)
                 }
             }
             .contentShape(Rectangle())
@@ -1014,24 +1202,25 @@ struct TimeSelector: View {
         return AnyView(
             ZStack(alignment: .topLeading) {
                 // Main rectangle
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.blue.opacity(0.2))
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(AppColors.accentSubtle.opacity(0.5))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color.blue, lineWidth: 2)
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(AppColors.accent, lineWidth: 2)
                     )
                     .frame(height: height)
+                    .shadow(color: AppColors.accent.opacity(0.1), radius: 8, x: 0, y: 2)
                     .overlay(
                         // Time display
                         VStack(spacing: 4) {
                             Text(selection.startTime)
-                                .font(.system(size: 14, weight: .semibold))
+                                .font(AppTypography.callout(weight: .semibold))
                             Text("-")
-                                .font(.system(size: 12))
+                                .font(AppTypography.caption(weight: .regular))
                             Text(selection.endTime)
-                                .font(.system(size: 14, weight: .semibold))
+                                .font(AppTypography.callout(weight: .semibold))
                         }
-                        .foregroundColor(.black)
+                        .foregroundColor(AppColors.textPrimary)
                     )
                     .highPriorityGesture(
                         DragGesture(minimumDistance: 5)
@@ -1048,14 +1237,15 @@ struct TimeSelector: View {
 
                 // Top handle
                 Circle()
-                    .fill(Color.blue)
-                    .frame(width: 24, height: 24)
+                    .fill(AppColors.accent)
+                    .frame(width: 28, height: 28)
                     .overlay(
                         Image(systemName: "arrow.up.and.down")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundColor(.black)
+                            .font(AppTypography.caption(weight: .bold))
+                            .foregroundColor(AppColors.surfaceElevated)
                     )
-                    .position(x: 12, y: 0)
+                    .shadow(color: AppColors.accent.opacity(0.25), radius: 4, x: 0, y: 2)
+                    .position(x: 14, y: 0)
                     .highPriorityGesture(
                         DragGesture(minimumDistance: 0)
                             .onChanged { value in
@@ -1071,14 +1261,15 @@ struct TimeSelector: View {
 
                 // Bottom handle
                 Circle()
-                    .fill(Color.blue)
-                    .frame(width: 24, height: 24)
+                    .fill(AppColors.accent)
+                    .frame(width: 28, height: 28)
                     .overlay(
                         Image(systemName: "arrow.up.and.down")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundColor(.black)
+                            .font(AppTypography.caption(weight: .bold))
+                            .foregroundColor(AppColors.surfaceElevated)
                     )
-                    .position(x: 12, y: height)
+                    .shadow(color: AppColors.accent.opacity(0.25), radius: 4, x: 0, y: 2)
+                    .position(x: 14, y: height)
                     .highPriorityGesture(
                         DragGesture(minimumDistance: 0)
                             .onChanged { value in
@@ -1159,22 +1350,24 @@ struct EventView: View {
         let yOffset = CGFloat(event.startSlotIndex) * slotHeight
         let height = CGFloat(event.endSlotIndex - event.startSlotIndex) * slotHeight
 
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 4) {
             Text(event.title)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(.white)
-                .lineLimit(3)
+                .font(AppTypography.subheadline(weight: .semibold))
+                .foregroundColor(AppColors.eventBlue)
+                .lineLimit(height > 40 ? 2 : 1)
 
-            if !event.isAllDay && height > 30 {
+            if !event.isAllDay && height > 40 {
                 Text("\(event.startTime) - \(event.endTime)")
-                    .font(.system(size: 10))
-                    .foregroundColor(.white.opacity(0.9))
+                    .font(AppTypography.caption(weight: .regular))
+                    .foregroundColor(AppColors.eventBlue.opacity(0.75))
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding(6)
-        .background(Color.blue.opacity(0.8))
-        .cornerRadius(6)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(AppColors.eventBlueBg)
+        .cornerRadius(10)
+        .shadow(color: AppColors.eventBlue.opacity(0.08), radius: 4, x: 0, y: 2)
         .frame(height: height)
         .offset(y: yOffset)
     }
@@ -1183,12 +1376,16 @@ struct EventView: View {
 // MARK: - Add Event Button
 struct AddEventButton: View {
     var body: some View {
-        Image(systemName: "plus")
-            .font(.system(size: 24, weight: .medium))
-            .foregroundColor(.black)
-            .frame(width: 56, height: 56)
-            .background(Color.gray.opacity(0.8))
-            .clipShape(Circle())
+        ZStack {
+            Circle()
+                .fill(AppColors.accent)
+                .frame(width: 60, height: 60)
+                .shadow(color: AppColors.accent.opacity(0.3), radius: 12, x: 0, y: 4)
+
+            Image(systemName: "plus")
+                .font(AppTypography.title(weight: .semibold))
+                .foregroundColor(AppColors.surfaceElevated)
+        }
     }
 }
 
@@ -1265,69 +1462,74 @@ struct EventCreationModule: View {
                     Button("Cancel") {
                         handleCancel()
                     }
-                    .foregroundColor(.black)
+                    .font(AppTypography.body(weight: .regular))
+                    .foregroundColor(AppColors.textSecondary)
 
                     Spacer()
 
                     Text("New event")
-                        .font(.system(size: 17, weight: .semibold))
+                        .font(AppTypography.headline(weight: .semibold))
+                        .foregroundColor(AppColors.textPrimary)
 
                     Spacer()
 
                     Button("Add") {
                         handleAdd()
                     }
-                    .foregroundColor(isAddButtonEnabled ? .blue : .gray)
-                    .fontWeight(.semibold)
+                    .font(AppTypography.body(weight: .semibold))
+                    .foregroundColor(isAddButtonEnabled ? AppColors.accent : AppColors.textTertiary)
                     .disabled(!isAddButtonEnabled)
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .background(Color.white)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 16)
+                .background(AppColors.surfaceElevated)
                 .overlay(alignment: .bottom) {
-                    Divider()
+                    Rectangle()
+                        .fill(AppColors.border)
+                        .frame(height: 1)
                 }
 
                 // Content
                 ScrollView {
-                    VStack(spacing: 0) {
+                    VStack(spacing: 12) {
                         // Section 1: Title and Description
-                        VStack(spacing: 12) {
+                        VStack(spacing: 16) {
                             TextField("Add a title", text: $title)
-                                .font(.system(size: 17))
-                                .foregroundColor(.black)
+                                .font(AppTypography.headline(weight: .regular))
+                                .foregroundColor(AppColors.textPrimary)
                                 .focused($isTitleFocused)
 
                             TextField("Description", text: $description, axis: .vertical)
-                                .font(.system(size: 15))
-                                .foregroundColor(.black)
+                                .font(AppTypography.body(weight: .regular))
+                                .foregroundColor(AppColors.textSecondary)
                                 .lineLimit(3...6)
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 16)
-                        .background(Color.white)
-                        .overlay(alignment: .bottom) {
-                            Divider()
-                        }
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 20)
+                        .background(AppColors.surfaceElevated)
+                        .cornerRadius(12)
 
                         // Section 2: Duration
                         VStack(spacing: 0) {
                             // All-day toggle
                             HStack {
                                 Text("All day")
-                                    .font(.system(size: 17))
-                                    .foregroundColor(.black)
+                                    .font(AppTypography.body(weight: .regular))
+                                    .foregroundColor(AppColors.textPrimary)
 
                                 Spacer()
 
                                 Toggle("", isOn: $isAllDay)
                                     .labelsHidden()
+                                    .tint(AppColors.accent)
                             }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 12)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 16)
 
-                            Divider()
-                                .padding(.leading, 16)
+                            Rectangle()
+                                .fill(AppColors.borderSubtle)
+                                .frame(height: 1)
+                                .padding(.leading, 20)
 
                             // Start date and time
                             HStack {
@@ -1336,8 +1538,8 @@ struct EventCreationModule: View {
                                     showDatePicker = true
                                 }) {
                                     Text(formattedDate(startDate))
-                                        .font(.system(size: 17))
-                                        .foregroundColor(.black)
+                                        .font(AppTypography.body(weight: .regular))
+                                        .foregroundColor(AppColors.textPrimary)
                                 }
 
                                 Spacer()
@@ -1348,21 +1550,23 @@ struct EventCreationModule: View {
                                         showTimePicker = true
                                     }) {
                                         Text(startTime)
-                                            .font(.system(size: 17))
-                                            .foregroundColor(.black)
+                                            .font(AppTypography.body(weight: .medium))
+                                            .foregroundColor(AppColors.accent)
                                     }
                                 }
                             }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 12)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 16)
                             .onChange(of: startDate) { _, newValue in
                                 if newValue > endDate {
                                     endDate = newValue
                                 }
                             }
 
-                            Divider()
-                                .padding(.leading, 16)
+                            Rectangle()
+                                .fill(AppColors.borderSubtle)
+                                .frame(height: 1)
+                                .padding(.leading, 20)
 
                             // End date and time
                             HStack {
@@ -1371,8 +1575,8 @@ struct EventCreationModule: View {
                                     showDatePicker = true
                                 }) {
                                     Text(formattedDate(endDate))
-                                        .font(.system(size: 17))
-                                        .foregroundColor(.black)
+                                        .font(AppTypography.body(weight: .regular))
+                                        .foregroundColor(AppColors.textPrimary)
                                 }
 
                                 Spacer()
@@ -1383,22 +1587,24 @@ struct EventCreationModule: View {
                                         showTimePicker = true
                                     }) {
                                         Text(endTime)
-                                            .font(.system(size: 17))
-                                            .foregroundColor(.black)
+                                            .font(AppTypography.body(weight: .medium))
+                                            .foregroundColor(AppColors.accent)
                                     }
                                 }
                             }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 12)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 16)
 
-                            Divider()
-                                .padding(.leading, 16)
+                            Rectangle()
+                                .fill(AppColors.borderSubtle)
+                                .frame(height: 1)
+                                .padding(.leading, 20)
 
                             // Repeats
                             HStack {
                                 Text("Repeats")
-                                    .font(.system(size: 17))
-                                    .foregroundColor(.black)
+                                    .font(AppTypography.body(weight: .regular))
+                                    .foregroundColor(AppColors.textPrimary)
 
                                 Spacer()
 
@@ -1409,25 +1615,26 @@ struct EventCreationModule: View {
                                     }
                                 }
                                 .labelsHidden()
+                                .tint(AppColors.accent)
                                 .frame(width: 150, alignment: .trailing)
                             }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 12)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 16)
                         }
-                        .background(Color.white)
-                        .overlay(alignment: .bottom) {
-                            Divider()
-                        }
+                        .background(AppColors.surfaceElevated)
+                        .cornerRadius(12)
                     }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 20)
                 }
             }
-            .background(Color.gray.opacity(0.05))
+            .background(AppColors.background)
             #if os(iOS)
-            .cornerRadius(16, corners: [.topLeft, .topRight])
+            .cornerRadius(20, corners: [.topLeft, .topRight])
             #else
-            .cornerRadius(16, corners: [.topLeft, .topRight])
+            .cornerRadius(20, corners: [.topLeft, .topRight])
             #endif
-            .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: -2)
+            .shadow(color: AppColors.textPrimary.opacity(0.15), radius: 20, x: 0, y: -5)
             .offset(y: currentOffset(geometry))
             .gesture(
                 DragGesture()
@@ -1439,7 +1646,7 @@ struct EventCreationModule: View {
                         let translation = value.translation.height
                         let velocity = value.predictedEndTranslation.height - value.translation.height
 
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        withAnimation(AppAnimations.spring) {
                             if sheetPosition == .peek {
                                 if translation < -50 || velocity < -100 {
                                     sheetPosition = .expanded
@@ -1459,7 +1666,7 @@ struct EventCreationModule: View {
             )
             .onTapGesture {
                 if sheetPosition == .peek {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    withAnimation(AppAnimations.spring) {
                         sheetPosition = .expanded
                         isTitleFocused = true
                     }
@@ -1557,7 +1764,7 @@ struct EventCreationModule: View {
     }
 
     private func handleCancel() {
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+        withAnimation(AppAnimations.spring) {
             sheetPosition = .hidden
             timeSelection = nil
             title = ""
@@ -1619,7 +1826,7 @@ struct EventCreationModule: View {
         }
 
         // Close the module and reset
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+        withAnimation(AppAnimations.spring) {
             sheetPosition = .hidden
             timeSelection = nil
             title = ""
@@ -1716,10 +1923,10 @@ struct TimePickerModule: View {
         VStack(spacing: 0) {
             // Title
             Text(isStartTime ? "Select Start Time" : "Select End Time")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundColor(.black)
-                .padding(.top, 20)
-                .padding(.bottom, 16)
+                .font(AppTypography.headline(weight: .semibold))
+                .foregroundColor(AppColors.textPrimary)
+                .padding(.top, 24)
+                .padding(.bottom, 20)
 
             // Time Picker
             HStack(spacing: 0) {
@@ -1759,19 +1966,19 @@ struct TimePickerModule: View {
                 showPicker = false
             }) {
                 Text("Confirm")
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundColor(.white)
+                    .font(AppTypography.body(weight: .semibold))
+                    .foregroundColor(AppColors.surfaceElevated)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .background(Color.blue)
-                    .cornerRadius(10)
+                    .padding(.vertical, 16)
+                    .background(AppColors.accent)
+                    .cornerRadius(12)
             }
             .padding(.horizontal, 20)
-            .padding(.vertical, 16)
+            .padding(.vertical, 20)
         }
-        .background(Color.white)
-        .cornerRadius(16, corners: [.topLeft, .topRight])
-        .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: -2)
+        .background(AppColors.surfaceElevated)
+        .cornerRadius(20, corners: [.topLeft, .topRight])
+        .shadow(color: AppColors.textPrimary.opacity(0.15), radius: 20, x: 0, y: -5)
     }
 
     private func updateTimeSelection() {
@@ -1823,39 +2030,39 @@ struct DatePickerCalendarModule: View {
             // Top row with month/year and navigation
             HStack {
                 Text(monthYearString)
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.black)
+                    .font(AppTypography.headline(weight: .semibold))
+                    .foregroundColor(AppColors.textPrimary)
 
                 Spacer()
 
-                HStack(spacing: 16) {
+                HStack(spacing: 20) {
                     Button(action: previousMonth) {
                         Image(systemName: "chevron.left")
-                            .font(.system(size: 16))
-                            .foregroundColor(.black)
+                            .font(AppTypography.body(weight: .medium))
+                            .foregroundColor(AppColors.accent)
                     }
 
                     Button(action: nextMonth) {
                         Image(systemName: "chevron.right")
-                            .font(.system(size: 16))
-                            .foregroundColor(.black)
+                            .font(AppTypography.body(weight: .medium))
+                            .foregroundColor(AppColors.accent)
                     }
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 16)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 20)
 
             // Week days row
             HStack(spacing: 0) {
                 ForEach(["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"], id: \.self) { day in
                     Text(day)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(.gray)
+                        .font(AppTypography.caption(weight: .semibold))
+                        .foregroundColor(AppColors.textTertiary)
                         .frame(maxWidth: .infinity)
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 8)
+            .padding(.horizontal, 24)
+            .padding(.bottom, 12)
 
             // Calendar grid with carousel
             GeometryReader { geometry in
@@ -1918,19 +2125,19 @@ struct DatePickerCalendarModule: View {
                 showPicker = false
             }) {
                 Text("Confirm")
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundColor(.white)
+                    .font(AppTypography.body(weight: .semibold))
+                    .foregroundColor(AppColors.surfaceElevated)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .background(Color.blue)
-                    .cornerRadius(10)
+                    .padding(.vertical, 16)
+                    .background(AppColors.accent)
+                    .cornerRadius(12)
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 16)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 20)
         }
-        .background(Color.white)
-        .cornerRadius(16, corners: [.topLeft, .topRight])
-        .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: -2)
+        .background(AppColors.surfaceElevated)
+        .cornerRadius(20, corners: [.topLeft, .topRight])
+        .shadow(color: AppColors.textPrimary.opacity(0.15), radius: 20, x: 0, y: -5)
     }
 
     private var monthYearString: String {
@@ -1967,7 +2174,7 @@ struct DatePickerCalendarModule: View {
     }
 
     private func previousMonth() {
-        withAnimation(.easeInOut(duration: 0.3)) {
+        withAnimation(AppAnimations.easeInOut) {
             slideDirection = .right
             if let newMonth = Calendar.current.date(byAdding: .month, value: -1, to: displayedMonth) {
                 displayedMonth = newMonth
@@ -1976,7 +2183,7 @@ struct DatePickerCalendarModule: View {
     }
 
     private func nextMonth() {
-        withAnimation(.easeInOut(duration: 0.3)) {
+        withAnimation(AppAnimations.easeInOut) {
             slideDirection = .left
             if let newMonth = Calendar.current.date(byAdding: .month, value: 1, to: displayedMonth) {
                 displayedMonth = newMonth
@@ -1990,30 +2197,30 @@ struct DatePickerCalendarModule: View {
         if gesture.translation.width < -threshold {
             // Swipe left: next month
             if let nextMonth = Calendar.current.date(byAdding: .month, value: 1, to: displayedMonth) {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                withAnimation(AppAnimations.spring) {
                     displayedMonth = nextMonth
                     dragOffset = 0
                 }
             } else {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                withAnimation(AppAnimations.spring) {
                     dragOffset = 0
                 }
             }
         } else if gesture.translation.width > threshold {
             // Swipe right: previous month
             if let prevMonth = Calendar.current.date(byAdding: .month, value: -1, to: displayedMonth) {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                withAnimation(AppAnimations.spring) {
                     displayedMonth = prevMonth
                     dragOffset = 0
                 }
             } else {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                withAnimation(AppAnimations.spring) {
                     dragOffset = 0
                 }
             }
         } else {
             // Snap back
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            withAnimation(AppAnimations.spring) {
                 dragOffset = 0
             }
         }
@@ -2085,12 +2292,13 @@ struct DateCell: View {
     var body: some View {
         Button(action: action) {
             Text("\(Calendar.current.component(.day, from: date))")
-                .font(.system(size: 16))
-                .foregroundColor(isSelected ? .white : (isCurrentMonth ? .black : .gray))
-                .frame(width: 40, height: 40)
-                .background(isSelected ? Color.blue : Color.clear)
+                .font(AppTypography.body(weight: isSelected ? .semibold : .regular))
+                .foregroundColor(isSelected ? AppColors.surfaceElevated : (isCurrentMonth ? AppColors.textPrimary : AppColors.textTertiary))
+                .frame(width: 44, height: 44)
+                .background(isSelected ? AppColors.accent : Color.clear)
                 .clipShape(Circle())
         }
+        .buttonStyle(ScaleButtonStyle())
     }
 }
 
