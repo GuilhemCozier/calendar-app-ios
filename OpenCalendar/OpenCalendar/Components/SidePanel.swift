@@ -42,13 +42,13 @@ struct SidePanel: View {
                     selectedViewMode: $selectedViewMode
                 )
                 ViewOptionRow(
-                    icon: "square.grid.3x1",
+                    icon: "rectangle.grid.1x2",
                     title: "Three days",
                     viewMode: .threeDays,
                     selectedViewMode: $selectedViewMode
                 )
                 ViewOptionRow(
-                    icon: "square.grid.4x1",
+                    icon: "rectangle.grid.2x2",
                     title: "Week",
                     viewMode: .week,
                     selectedViewMode: $selectedViewMode
@@ -58,7 +58,13 @@ struct SidePanel: View {
             Spacer()
         }
         .frame(width: 280)
+        .frame(maxHeight: .infinity)
         .background(AppColors.surface)
+        .contentShape(Rectangle())
+        .allowsHitTesting(true)
+        .onTapGesture {
+            // Consume any taps that don't hit specific buttons
+        }
         .shadow(color: AppColors.textPrimary.opacity(0.08), radius: 12, x: 2, y: 0)
     }
 }
@@ -108,7 +114,9 @@ struct ViewOptionRow: View {
 
     var body: some View {
         Button(action: {
+            print("ViewOptionRow tapped: \(viewMode.rawValue)")
             selectedViewMode = viewMode
+            print("Selected view mode changed to: \(selectedViewMode.rawValue)")
         }) {
             HStack(spacing: 12) {
                 // Icon - Using SF Symbols as placeholders for Lucide icons
@@ -130,7 +138,7 @@ struct ViewOptionRow: View {
             .background(isHovered ? AppColors.accentSubtle : Color.clear)
             .contentShape(Rectangle())
         }
-        .buttonStyle(PlainButtonStyle())
+        .buttonStyle(.plain)
         .onHover { hovering in
             withAnimation(AppAnimations.springQuick) {
                 isHovered = hovering

@@ -40,15 +40,16 @@ struct ContentView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            HStack(spacing: 0) {
-                // Side Panel
-                if showSidePanel {
-                    SidePanel(isVisible: $showSidePanel, selectedViewMode: $selectedViewMode)
-                        .transition(.move(edge: .leading))
-                }
-
+            ZStack(alignment: .leading) {
                 // Main App Content
-                ZStack(alignment: .bottomTrailing) {
+                HStack(spacing: 0) {
+                    // Push content to the right when panel is visible
+                    if showSidePanel {
+                        Color.clear
+                            .frame(width: 280)
+                    }
+
+                    ZStack(alignment: .bottomTrailing) {
                     VStack(spacing: 0) {
                         TopNavBar(
                             viewedDate: viewedDate,
@@ -84,7 +85,8 @@ struct ContentView: View {
                     }
 
                     // Main content area - switches based on view mode
-                    if selectedViewMode == .oneDay {
+                    Group {
+                        if selectedViewMode == .oneDay {
                         // Day carousel with pre-rendered slides (existing single-day view)
                         ZStack {
                             // Previous day slide
@@ -97,6 +99,7 @@ struct ContentView: View {
                                 .id("day-\(Calendar.current.startOfDay(for: prevDay).timeIntervalSince1970)")
                                 .frame(width: geometry.size.width)
                                 .offset(x: -geometry.size.width + dayCarouselOffset)
+                                .allowsHitTesting(false)
                             }
 
                             // Current day slide
@@ -119,6 +122,7 @@ struct ContentView: View {
                                 .id("day-\(Calendar.current.startOfDay(for: nextDay).timeIntervalSince1970)")
                                 .frame(width: geometry.size.width)
                                 .offset(x: geometry.size.width + dayCarouselOffset)
+                                .allowsHitTesting(false)
                             }
                         }
                         .clipped()
@@ -142,14 +146,18 @@ struct ContentView: View {
                                     handleDaySwipe(value, screenWidth: geometry.size.width)
                                 }
                         )
-                    } else {
-                        // Multi-day view (3 days or week)
-                        MultiDayView(
-                            startDate: viewedDate,
-                            numberOfDays: selectedViewMode.numberOfDays,
-                            timeSelection: $timeSelection,
-                            events: events
-                        )
+                        } else {
+                            // Multi-day view (3 days or week)
+                            MultiDayView(
+                                startDate: viewedDate,
+                                numberOfDays: selectedViewMode.numberOfDays,
+                                timeSelection: $timeSelection,
+                                events: events
+                            )
+                        }
+                    }
+                    .onChange(of: selectedViewMode) { oldValue, newValue in
+                        print("ContentView: selectedViewMode changed from \(oldValue.rawValue) to \(newValue.rawValue)")
                     }
                 }
 
@@ -188,15 +196,23 @@ struct ContentView: View {
                             events.append(event)
                         }
                     )
-                }
-                }
-                .background(AppColors.background)
-                .onChange(of: timeSelection) { _, newValue in
-                    if newValue != nil {
-                        sheetPosition = .peek
-                    } else {
-                        sheetPosition = .hidden
                     }
+                    }
+                    .background(AppColors.background)
+                    .onChange(of: timeSelection) { _, newValue in
+                        if newValue != nil {
+                            sheetPosition = .peek
+                        } else {
+                            sheetPosition = .hidden
+                        }
+                    }
+                }
+
+                // Side Panel (overlay on top to prevent click-through)
+                if showSidePanel {
+                    SidePanel(isVisible: $showSidePanel, selectedViewMode: $selectedViewMode)
+                        .transition(.move(edge: .leading))
+                        .zIndex(1000)
                 }
             }
         }

@@ -68,14 +68,11 @@ struct DayColumn: View {
     let date: Date
     @Binding var timeSelection: TimeSelection?
     let events: [CalendarEvent]
+    @State private var selectionStart: Int?
+    @State private var selectionEnd: Int?
+    @State private var isDragging = false
 
     private let calendar = Calendar.current
-
-    private var filteredAllDayEvents: [CalendarEvent] {
-        events.filter { event in
-            event.isAllDay && calendar.isDate(event.startDate, inSameDayAs: date)
-        }
-    }
 
     private var filteredTimedEvents: [CalendarEvent] {
         events.filter { event in
@@ -88,21 +85,36 @@ struct DayColumn: View {
             // Date header
             DateRow(viewedDate: date)
 
-            // All-day events (if any)
-            // For now, we'll skip this to match the hour labels alignment
-            // WholeDayRow(events: filteredAllDayEvents)
-
-            // Time slots with events
+            // Interactive time slots with events
             ScrollView {
                 ZStack(alignment: .topLeading) {
-                    // Time slot grid
+                    // Time slot grid (interactive)
                     VStack(spacing: 0) {
-                        ForEach(0..<96, id: \.self) { _ in
+                        ForEach(0..<96, id: \.self) { slotIndex in
                             Rectangle()
                                 .fill(Color.clear)
                                 .frame(height: 15)
                                 .border(AppColors.borderSubtle, width: 0.5)
+                                .contentShape(Rectangle())
+                                .gesture(
+                                    DragGesture(minimumDistance: 0)
+                                        .onChanged { value in
+                                            handleDragChanged(value, slotIndex: slotIndex)
+                                        }
+                                        .onEnded { _ in
+                                            handleDragEnded()
+                                        }
+                                )
                         }
+                    }
+
+                    // Time selection overlay
+                    if let start = selectionStart, let end = selectionEnd {
+                        Rectangle()
+                            .fill(AppColors.accent.opacity(0.2))
+                            .frame(height: CGFloat(end - start) * 15)
+                            .offset(y: CGFloat(start) * 15)
+                            .border(AppColors.accent, width: 2)
                     }
 
                     // Events overlay
@@ -114,5 +126,32 @@ struct DayColumn: View {
             }
             .scrollDisabled(true)
         }
+    }
+
+    private func handleDragChanged(_ value: DragGesture.Value, slotIndex: Int) {
+        if !isDragging {
+            isDragging = true
+            selectionStart = slotIndex
+            selectionEnd = slotIndex + 1
+        } else {
+            if let start = selectionStart {
+                let currentSlot = slotIndex
+                if currentSlot >= start {
+                    selectionEnd = min(currentSlot + 1, 96)
+                } else {
+                    selectionStart = currentSlot
+                    selectionEnd = start + 1
+                }
+            }
+        }
+    }
+
+    private func handleDragEnded() {
+        if let start = selectionStart, let end = selectionEnd {
+            timeSelection = TimeSelection(startSlotIndex: start, endSlotIndex: end)
+        }
+        isDragging = false
+        selectionStart = nil
+        selectionEnd = nil
     }
 }
