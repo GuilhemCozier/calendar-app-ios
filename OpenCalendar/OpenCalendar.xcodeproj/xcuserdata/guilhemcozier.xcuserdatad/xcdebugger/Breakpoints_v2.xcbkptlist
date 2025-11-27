@@ -16,7 +16,7 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "10"
             endingLineNumber = "10"
-            landmarkName = "AppColors"
+            landmarkName = "ContentView"
             landmarkType = "14">
          </BreakpointContent>
       </BreakpointProxy>
@@ -30,10 +30,22 @@
             filePath = "OpenCalendar/ContentView.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "765"
-            endingLineNumber = "765"
-            landmarkName = "body"
-            landmarkType = "24">
+            startingLineNumber = "767"
+            endingLineNumber = "767">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "2758F118-EF98-40E4-B731-E125B5BBAB80"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "OpenCalendar/ContentView.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "2129"
+            endingLineNumber = "2129">
          </BreakpointContent>
       </BreakpointProxy>
    </Breakpoints>
