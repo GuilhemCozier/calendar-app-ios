@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct ContentView: View {
-    @State private var timeSelection: TimeSelection?
+    @State private var timeSelection: DayTimeSelection?
     @State private var sheetPosition: SheetPosition = .hidden
     @State private var events: [CalendarEvent] = []
     @State private var viewedDate: Date = Date()
@@ -21,6 +21,8 @@ struct ContentView: View {
     // Carousel state
     @State private var dayCarouselOffset: CGFloat = 0
     @State private var isDraggingDay: Bool = false
+    @State private var multiDayCarouselOffset: CGFloat = 0
+    @State private var isDraggingMultiDay: Bool = false
 
     // Side panel state
     @State private var showSidePanel: Bool = false
@@ -152,12 +154,30 @@ struct ContentView: View {
                                 startDate: viewedDate,
                                 numberOfDays: selectedViewMode.numberOfDays,
                                 timeSelection: $timeSelection,
-                                events: events
+                                events: events,
+                                carouselOffset: $multiDayCarouselOffset,
+                                isDragging: $isDraggingMultiDay
+                            )
+                            .animation(.easeOut(duration: 0.0), value: viewedDate)
+                            .gesture(
+                                DragGesture(minimumDistance: 10)
+                                    .onChanged { value in
+                                        guard !showQuickNavigation else { return }
+
+                                        let horizontalAmount = value.translation.width
+                                        let verticalAmount = abs(value.translation.height)
+
+                                        if abs(horizontalAmount) > verticalAmount {
+                                            isDraggingMultiDay = true
+                                            multiDayCarouselOffset = horizontalAmount
+                                        }
+                                    }
+                                    .onEnded { value in
+                                        guard !showQuickNavigation else { return }
+                                        handleMultiDaySwipe(value, screenWidth: geometry.size.width - 65)
+                                    }
                             )
                         }
-                    }
-                    .onChange(of: selectedViewMode) { oldValue, newValue in
-                        print("ContentView: selectedViewMode changed from \(oldValue.rawValue) to \(newValue.rawValue)")
                     }
                 }
 
@@ -295,6 +315,92 @@ struct ContentView: View {
         // This is just for top nav bar - it will update automatically via viewedDate binding
     }
 
+    private func handleMultiDaySwipe(_ gesture: DragGesture.Value, screenWidth: CGFloat) {
+        let horizontalAmount = gesture.translation.width
+        let verticalAmount = abs(gesture.translation.height)
+
+        // Only handle horizontal swipes
+        guard abs(horizontalAmount) > verticalAmount else {
+            withAnimation(AppAnimations.spring) {
+                multiDayCarouselOffset = 0
+                isDraggingMultiDay = false
+            }
+            return
+        }
+
+        let threshold = screenWidth * 0.3
+
+        if abs(horizontalAmount) > threshold {
+            // Calculate day shift amount based on view mode
+            let dayShift: Int
+            if selectedViewMode == .week {
+                // Week view: discrete 7-day jumps
+                dayShift = 7
+            } else {
+                // Three-day view: continuous navigation based on swipe distance
+                let swipeRatio = abs(horizontalAmount) / screenWidth
+                // Map swipe distance to 1-3 days
+                // 0.3-0.5 ratio → 1 day, 0.5-0.8 → 2 days, 0.8+ → 3 days
+                if swipeRatio < 0.5 {
+                    dayShift = 1
+                } else if swipeRatio < 0.8 {
+                    dayShift = 2
+                } else {
+                    dayShift = 3
+                }
+            }
+
+            if horizontalAmount < 0 {
+                // Swipe left: go forward
+                if let nextStart = Calendar.current.date(byAdding: .day, value: dayShift, to: viewedDate) {
+                    // Calculate proportional animation distance for smooth transitions
+                    // For 3-day view: 1-day shift = 1/3 screen, 2-day = 2/3 screen, 3-day = full screen
+                    let animationDistance = -screenWidth * CGFloat(dayShift) / CGFloat(selectedViewMode.numberOfDays)
+
+                    // Smoothly complete the swipe animation
+                    withAnimation(AppAnimations.spring) {
+                        multiDayCarouselOffset = animationDistance
+                    }
+
+                    // Wait for the animation to complete, THEN update the date and reset offset
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                        self.viewedDate = nextStart
+                        self.multiDayCarouselOffset = 0
+                        self.isDraggingMultiDay = false
+                    }
+                } else {
+                    isDraggingMultiDay = false
+                }
+            } else {
+                // Swipe right: go backward
+                if let prevStart = Calendar.current.date(byAdding: .day, value: -dayShift, to: viewedDate) {
+                    // Calculate proportional animation distance for smooth transitions
+                    let animationDistance = screenWidth * CGFloat(dayShift) / CGFloat(selectedViewMode.numberOfDays)
+
+                    // Smoothly complete the swipe animation
+                    withAnimation(AppAnimations.spring) {
+                        multiDayCarouselOffset = animationDistance
+                    }
+
+                    // Wait for the animation to complete, THEN update the date and reset offset
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                        self.viewedDate = prevStart
+                        self.multiDayCarouselOffset = 0
+                        self.isDraggingMultiDay = false
+                    }
+                } else {
+                    isDraggingMultiDay = false
+                }
+            }
+        } else {
+            // Snap back
+            withAnimation(AppAnimations.spring) {
+                multiDayCarouselOffset = 0
+            }
+            isDraggingMultiDay = false
+        }
+    }
+
     private func handleButtonTap() {
         // Calculate next full hour
         let now = Date()
@@ -307,9 +413,12 @@ struct ContentView: View {
         let startSlotIndex = nextHour * 4  // Each hour = 4 slots
         let endSlotIndex = min(startSlotIndex + 4, 95)  // +1 hour, max 95
 
-        timeSelection = TimeSelection(
-            startSlotIndex: startSlotIndex,
-            endSlotIndex: endSlotIndex
+        timeSelection = DayTimeSelection(
+            date: viewedDate,
+            timeSelection: TimeSelection(
+                startSlotIndex: startSlotIndex,
+                endSlotIndex: endSlotIndex
+            )
         )
 
         withAnimation(AppAnimations.spring) {
@@ -338,9 +447,12 @@ struct ContentView: View {
             let startSlotIndex = max(0, min(slotIndex, 95))
             let endSlotIndex = min(startSlotIndex + 4, 95)  // +1 hour
 
-            timeSelection = TimeSelection(
-                startSlotIndex: startSlotIndex,
-                endSlotIndex: endSlotIndex
+            timeSelection = DayTimeSelection(
+                date: viewedDate,
+                timeSelection: TimeSelection(
+                    startSlotIndex: startSlotIndex,
+                    endSlotIndex: endSlotIndex
+                )
             )
 
             withAnimation(AppAnimations.spring) {

@@ -11,7 +11,7 @@ import SwiftUI
 
 struct DayContentView: View {
     let date: Date
-    @Binding var timeSelection: TimeSelection?
+    @Binding var timeSelection: DayTimeSelection?
     let events: [CalendarEvent]
 
     private let calendar = Calendar.current
@@ -22,19 +22,14 @@ struct DayContentView: View {
         }
     }
 
-    private var filteredTimedEvents: [CalendarEvent] {
-        events.filter { event in
-            !event.isAllDay && calendar.isDate(event.startDate, inSameDayAs: date)
-        }
-    }
-
     var body: some View {
         VStack(spacing: 0) {
             DateRow(viewedDate: date)
             WholeDayRow(events: filteredAllDayEvents)
             DayCanvas(
+                date: date,
                 timeSelection: $timeSelection,
-                events: filteredTimedEvents
+                events: events
             )
         }
     }

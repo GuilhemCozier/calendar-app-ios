@@ -46,6 +46,18 @@ struct TimeSelection: Equatable {
     }
 }
 
+// MARK: - Day-Specific Time Selection
+
+struct DayTimeSelection: Equatable {
+    let date: Date  // Which day this selection belongs to
+    var timeSelection: TimeSelection
+
+    // Helper to check if this selection is for a specific date
+    func isFor(date: Date) -> Bool {
+        Calendar.current.isDate(self.date, inSameDayAs: date)
+    }
+}
+
 // MARK: - Repetition Type
 
 enum RepetitionType: String, CaseIterable, Hashable {

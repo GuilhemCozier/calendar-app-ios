@@ -21,7 +21,7 @@ enum SheetPosition {
 
 // MARK: - Event Creation Module
 struct EventCreationModule: View {
-    @Binding var timeSelection: TimeSelection?
+    @Binding var timeSelection: DayTimeSelection?
     @Binding var sheetPosition: SheetPosition
     let viewedDate: Date
     let onAddEvent: (CalendarEvent) -> Void
@@ -329,18 +329,24 @@ struct EventCreationModule: View {
                         Spacer()
                         TimePickerModule(
                             timeSelection: timePickerMode == .start ? Binding(
-                                get: { timeSelection },
+                                get: { timeSelection?.timeSelection },
                                 set: { newValue in
-                                    if let newValue = newValue {
-                                        timeSelection = newValue
+                                    if let newValue = newValue, let daySelection = timeSelection {
+                                        timeSelection = DayTimeSelection(
+                                            date: daySelection.date,
+                                            timeSelection: newValue
+                                        )
                                         validateAndUpdateEndTime()
                                     }
                                 }
                             ) : Binding(
-                                get: { timeSelection },
+                                get: { timeSelection?.timeSelection },
                                 set: { newValue in
-                                    if let newValue = newValue {
-                                        timeSelection = newValue
+                                    if let newValue = newValue, let daySelection = timeSelection {
+                                        timeSelection = DayTimeSelection(
+                                            date: daySelection.date,
+                                            timeSelection: newValue
+                                        )
                                     }
                                 }
                             ),
@@ -379,12 +385,12 @@ struct EventCreationModule: View {
 
     private var startTime: String {
         guard let selection = timeSelection else { return "10:00" }
-        return selection.startTime
+        return selection.timeSelection.startTime
     }
 
     private var endTime: String {
         guard let selection = timeSelection else { return "11:00" }
-        return selection.endTime
+        return selection.timeSelection.endTime
     }
 
     private func handleCancel() {
@@ -403,14 +409,18 @@ struct EventCreationModule: View {
 
         let calendar = Calendar.current
         let isSameDay = calendar.isDate(startDate, inSameDayAs: endDate)
+        let ts = selection.timeSelection
 
-        if isSameDay && selection.startSlotIndex >= selection.endSlotIndex {
+        if isSameDay && ts.startSlotIndex >= ts.endSlotIndex {
             // Preserve duration and update end time
-            let duration = selection.endSlotIndex - selection.startSlotIndex
-            let newEnd = min(selection.startSlotIndex + abs(duration), 95)
-            timeSelection = TimeSelection(
-                startSlotIndex: selection.startSlotIndex,
-                endSlotIndex: newEnd
+            let duration = ts.endSlotIndex - ts.startSlotIndex
+            let newEnd = min(ts.startSlotIndex + abs(duration), 95)
+            timeSelection = DayTimeSelection(
+                date: selection.date,
+                timeSelection: TimeSelection(
+                    startSlotIndex: ts.startSlotIndex,
+                    endSlotIndex: newEnd
+                )
             )
         }
     }
@@ -421,14 +431,16 @@ struct EventCreationModule: View {
             return
         }
 
+        let ts = selection.timeSelection
+
         // Create recurring events based on repetition type
         if repetition == .none {
             // Single event
             let event = CalendarEvent(
                 title: title,
                 description: description,
-                startSlotIndex: selection.startSlotIndex,
-                endSlotIndex: selection.endSlotIndex,
+                startSlotIndex: ts.startSlotIndex,
+                endSlotIndex: ts.endSlotIndex,
                 isAllDay: isAllDay,
                 startDate: startDate,
                 endDate: endDate,
@@ -440,8 +452,8 @@ struct EventCreationModule: View {
             createRecurringEvents(
                 title: title,
                 description: description,
-                startSlotIndex: selection.startSlotIndex,
-                endSlotIndex: selection.endSlotIndex,
+                startSlotIndex: ts.startSlotIndex,
+                endSlotIndex: ts.endSlotIndex,
                 isAllDay: isAllDay,
                 baseStartDate: startDate,
                 baseEndDate: endDate,

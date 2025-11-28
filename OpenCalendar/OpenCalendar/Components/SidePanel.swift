@@ -114,9 +114,7 @@ struct ViewOptionRow: View {
 
     var body: some View {
         Button(action: {
-            print("ViewOptionRow tapped: \(viewMode.rawValue)")
             selectedViewMode = viewMode
-            print("Selected view mode changed to: \(selectedViewMode.rawValue)")
         }) {
             HStack(spacing: 12) {
                 // Icon - Using SF Symbols as placeholders for Lucide icons

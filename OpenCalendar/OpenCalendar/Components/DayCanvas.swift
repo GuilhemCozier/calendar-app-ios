@@ -7,54 +7,93 @@
 
 import SwiftUI
 
-// MARK: - Day Canvas
+// MARK: - Day Canvas (Single Day View)
 struct DayCanvas: View {
-    @Binding var timeSelection: TimeSelection?
+    let date: Date
+    @Binding var timeSelection: DayTimeSelection?
     let events: [CalendarEvent]
-    private let hours = Array(0..<24)
 
     var body: some View {
         ScrollView(showsIndicators: false) {
             HStack(alignment: .top, spacing: 0) {
-                // Left column: Hour labels
-                VStack(alignment: .trailing, spacing: 0) {
-                    ForEach(hours, id: \.self) { hour in
-                        HourLabel(hour: hour)
-                    }
-                }
-                .frame(width: 65)
+                // Hour labels column
+                HourLabelsColumn()
 
-                // Right column: Time slots with overlay
-                ZStack(alignment: .topLeading) {
-                    VStack(spacing: 0) {
-                        ForEach(0..<96, id: \.self) { slotIndex in
-                            TimeSlotRow(
-                                slotIndex: slotIndex,
-                                onTap: {
-                                    handleSlotTap(slotIndex: slotIndex)
-                                }
-                            )
-                        }
-                    }
-
-                    // Events overlay
-                    ForEach(events) { event in
-                        EventView(event: event)
-                    }
-
-                    // Time selector overlay
-                    if timeSelection != nil {
-                        TimeSelector(
-                            selection: $timeSelection,
-                            totalSlots: 96
-                        )
-                    }
-                }
+                // Time grid for this day
+                TimeGrid(
+                    date: date,
+                    timeSelection: $timeSelection,
+                    events: events
+                )
             }
             .padding(.horizontal, 20)
             .padding(.top, 8)
         }
         .background(AppColors.surface)
+    }
+}
+
+// MARK: - Hour Labels Column
+struct HourLabelsColumn: View {
+    private let hours = Array(0..<24)
+
+    var body: some View {
+        VStack(alignment: .trailing, spacing: 0) {
+            ForEach(hours, id: \.self) { hour in
+                HourLabel(hour: hour)
+            }
+        }
+        .frame(width: 65)
+    }
+}
+
+// MARK: - Time Grid (Day-Specific Time Slots)
+struct TimeGrid: View {
+    let date: Date
+    @Binding var timeSelection: DayTimeSelection?
+    let events: [CalendarEvent]
+
+    private var filteredTimedEvents: [CalendarEvent] {
+        events.filter { event in
+            !event.isAllDay && Calendar.current.isDate(event.startDate, inSameDayAs: date)
+        }
+    }
+
+    private var shouldShowSelector: Bool {
+        if let selection = timeSelection {
+            return selection.isFor(date: date)
+        }
+        return false
+    }
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            // Time slots grid
+            VStack(spacing: 0) {
+                ForEach(0..<96, id: \.self) { slotIndex in
+                    TimeSlotRow(
+                        slotIndex: slotIndex,
+                        onTap: {
+                            handleSlotTap(slotIndex: slotIndex)
+                        }
+                    )
+                }
+            }
+
+            // Events overlay
+            ForEach(filteredTimedEvents) { event in
+                EventView(event: event)
+            }
+
+            // Time selector overlay (only show if selection is for this day)
+            if shouldShowSelector, let selection = timeSelection {
+                DaySpecificTimeSelector(
+                    selection: $timeSelection,
+                    date: date,
+                    totalSlots: 96
+                )
+            }
+        }
     }
 
     private func handleSlotTap(slotIndex: Int) {
@@ -63,9 +102,12 @@ struct DayCanvas: View {
         // Default duration: 1 hour (4 slots)
         let defaultEnd = min(roundedStart + 4, 95)
 
-        timeSelection = TimeSelection(
-            startSlotIndex: roundedStart,
-            endSlotIndex: defaultEnd
+        timeSelection = DayTimeSelection(
+            date: date,
+            timeSelection: TimeSelection(
+                startSlotIndex: roundedStart,
+                endSlotIndex: defaultEnd
+            )
         )
     }
 }
@@ -113,9 +155,10 @@ struct TimeSlotRow: View {
     }
 }
 
-// MARK: - Time Selector
-struct TimeSelector: View {
-    @Binding var selection: TimeSelection?
+// MARK: - Day-Specific Time Selector
+struct DaySpecificTimeSelector: View {
+    @Binding var selection: DayTimeSelection?
+    let date: Date
     let totalSlots: Int
     private let slotHeight: CGFloat = 15
 
@@ -123,10 +166,13 @@ struct TimeSelector: View {
     @State private var initialEnd: Int = 0
 
     var body: some View {
-        guard let selection = selection else { return AnyView(EmptyView()) }
+        guard let daySelection = selection, daySelection.isFor(date: date) else {
+            return AnyView(EmptyView())
+        }
 
-        let yOffset = CGFloat(selection.startSlotIndex) * slotHeight
-        let height = CGFloat(selection.duration) * slotHeight
+        let timeSelection = daySelection.timeSelection
+        let yOffset = CGFloat(timeSelection.startSlotIndex) * slotHeight
+        let height = CGFloat(timeSelection.duration) * slotHeight
 
         return AnyView(
             ZStack(alignment: .topLeading) {
@@ -142,11 +188,11 @@ struct TimeSelector: View {
                     .overlay(
                         // Time display
                         VStack(spacing: 4) {
-                            Text(selection.startTime)
+                            Text(timeSelection.startTime)
                                 .font(AppTypography.callout(weight: .semibold))
                             Text("-")
                                 .font(AppTypography.caption(weight: .regular))
-                            Text(selection.endTime)
+                            Text(timeSelection.endTime)
                                 .font(AppTypography.callout(weight: .semibold))
                         }
                         .foregroundColor(AppColors.textPrimary)
@@ -157,10 +203,8 @@ struct TimeSelector: View {
                                 handleBodyDrag(value)
                             }
                             .onEnded { _ in
-                                if let sel = self.selection {
-                                    initialStart = sel.startSlotIndex
-                                    initialEnd = sel.endSlotIndex
-                                }
+                                initialStart = timeSelection.startSlotIndex
+                                initialEnd = timeSelection.endSlotIndex
                             }
                     )
 
@@ -181,10 +225,8 @@ struct TimeSelector: View {
                                 handleTopHandleDrag(value)
                             }
                             .onEnded { _ in
-                                if let sel = self.selection {
-                                    initialStart = sel.startSlotIndex
-                                    initialEnd = sel.endSlotIndex
-                                }
+                                initialStart = timeSelection.startSlotIndex
+                                initialEnd = timeSelection.endSlotIndex
                             }
                     )
 
@@ -205,22 +247,20 @@ struct TimeSelector: View {
                                 handleBottomHandleDrag(value)
                             }
                             .onEnded { _ in
-                                if let sel = self.selection {
-                                    initialStart = sel.startSlotIndex
-                                    initialEnd = sel.endSlotIndex
-                                }
+                                initialStart = timeSelection.startSlotIndex
+                                initialEnd = timeSelection.endSlotIndex
                             }
                     )
             }
             .offset(y: yOffset)
             .onAppear {
-                initialStart = selection.startSlotIndex
-                initialEnd = selection.endSlotIndex
+                initialStart = timeSelection.startSlotIndex
+                initialEnd = timeSelection.endSlotIndex
             }
-            .onChange(of: selection.startSlotIndex) { _, newValue in
+            .onChange(of: timeSelection.startSlotIndex) { _, newValue in
                 initialStart = newValue
             }
-            .onChange(of: selection.endSlotIndex) { _, newValue in
+            .onChange(of: timeSelection.endSlotIndex) { _, newValue in
                 initialEnd = newValue
             }
         )
@@ -230,9 +270,12 @@ struct TimeSelector: View {
         let draggedSlots = Int(round(value.translation.height / slotHeight))
         let newStart = max(0, min(initialEnd - 1, initialStart + draggedSlots))
 
-        self.selection = TimeSelection(
-            startSlotIndex: newStart,
-            endSlotIndex: initialEnd
+        self.selection = DayTimeSelection(
+            date: date,
+            timeSelection: TimeSelection(
+                startSlotIndex: newStart,
+                endSlotIndex: initialEnd
+            )
         )
     }
 
@@ -240,9 +283,12 @@ struct TimeSelector: View {
         let draggedSlots = Int(round(value.translation.height / slotHeight))
         let newEnd = max(initialStart + 1, min(95, initialEnd + draggedSlots))
 
-        self.selection = TimeSelection(
-            startSlotIndex: initialStart,
-            endSlotIndex: newEnd
+        self.selection = DayTimeSelection(
+            date: date,
+            timeSelection: TimeSelection(
+                startSlotIndex: initialStart,
+                endSlotIndex: newEnd
+            )
         )
     }
 
@@ -263,9 +309,12 @@ struct TimeSelector: View {
             newStart = 95 - duration
         }
 
-        self.selection = TimeSelection(
-            startSlotIndex: newStart,
-            endSlotIndex: newEnd
+        self.selection = DayTimeSelection(
+            date: date,
+            timeSelection: TimeSelection(
+                startSlotIndex: newStart,
+                endSlotIndex: newEnd
+            )
         )
     }
 }
