@@ -62,7 +62,7 @@ struct TopNavBar: View {
             HStack(spacing: 12) {
                 Button(action: {}) {
                     Image(systemName: "magnifyingglass")
-                        .font(.system(size: 18, weight: .regular))
+                        .font(.system(size: 18, weight: .medium))
                         .foregroundColor(Color.grey50)
                 }
                 .buttonStyle(ScaleButtonStyle())

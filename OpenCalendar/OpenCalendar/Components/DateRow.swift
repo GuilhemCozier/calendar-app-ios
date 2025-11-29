@@ -25,9 +25,7 @@ struct DateRow: View {
     var body: some View {
         // Compact date display - day abbreviation and number
         HStack(alignment: .bottom){
-            Rectangle()
-                .frame(width: 1, height: 15)
-                        .foregroundColor(.gray)
+            
             VStack(spacing: 1) {
                 Text(dayOfWeekShort)
                     .font(.system(size: 10, weight: .regular))
@@ -39,11 +37,20 @@ struct DateRow: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 5)
-            Rectangle()
-                .frame(width: 1, height: 15)
-                        .foregroundColor(.gray)
+            
                         
                 
         }
+        .overlay(alignment: .bottomTrailing) {
+            Rectangle()
+                .fill(Color.borderSoft8)
+                .frame(width: 1, height: 15)
+        }
+        .overlay(alignment: .bottomLeading) {
+            Rectangle()
+                .fill(Color.borderSoft8)
+                .frame(width: 1, height: 15)
+        }
+        
     }
 }

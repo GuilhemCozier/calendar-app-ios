@@ -15,38 +15,56 @@ struct WholeDayRow: View {
         HStack(alignment: .top, spacing: 0) {
             // Left: "All day" label
             VStack(alignment: .trailing) {
-                Text("All day")
-                    .font(.system(size: 10, weight: .medium))
+                Text("All\nday")
+                    .font(.system(size: 10, weight: .regular))
                     .foregroundColor(Color.grey50)
-                    .frame(width: 20)
                     .multilineTextAlignment(.trailing)
                 Spacer()
                 Image(systemName: "chevron.down")
                     .font(.system(size: 10, weight: .medium))
                     .foregroundColor(Color.grey50)
             }
-            .frame(width: 45)
+            
             .padding(.horizontal, 5.5)
             .padding(.vertical, 5)
+            .frame(maxWidth: 45, maxHeight: .infinity, alignment: .trailing)
+            .overlay(alignment: .trailing) {
+                Rectangle()
+                    .fill(Color.borderSoft8)
+                    .frame(width: 0.5)
+                    .padding(.top, 0)
+                    .padding(.bottom, 0)
+                    .padding(.trailing, 0)
+        
+            }
+            .overlay(alignment: .bottom) {
+                Rectangle()
+                    .fill(Color.borderSoft8)
+                    .frame(height: 0.5)
+                    .padding(.bottom, 0)
+                    .padding(.leading, 0)
+                    .padding(.trailing, 0)
+        
+            }
             // Right: All-day events
-            VStack(spacing: 6) {
+            VStack(spacing: 2) {
                 ForEach(events) { event in
                     AllDayEventView(event: event)
                 }
 
-                if events.isEmpty {
-                    Rectangle()
-                        .fill(Color.clear)
-                        .frame(height: 32)
-                }
+                
             }
+            .frame(maxWidth: .infinity, minHeight: 32, alignment: .top)
             .overlay(alignment: .bottom) {
                 Rectangle()
-                    .fill(AppColors.borderSubtle)
-                    .frame(height: 1)
+                    .fill(Color.borderSoft8)
+                    .frame(height: 0.5)
+                    .padding(.bottom, 0)
+                    .padding(.leading, 0)
+                    .padding(.trailing, 0)
+        
             }
         }
-        .background(AppColors.surface)
     }
 }
 
