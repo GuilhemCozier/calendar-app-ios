@@ -33,39 +33,28 @@ struct TopNavBar: View {
             // Hamburger menu button
             Button(action: onMenuTapped) {
                 Image(systemName: "line.3.horizontal")
-                    .font(AppTypography.body(weight: .regular))
-                    .foregroundColor(AppColors.textSecondary)
-                    .frame(width: 38, height: 38)
-                    .background(AppColors.surfaceElevated)
-                    .cornerRadius(10)
-                    .shadow(color: AppColors.textPrimary.opacity(0.04), radius: 8, x: 0, y: 2)
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundColor(Color.grey50)
+                    
             }
-            .buttonStyle(ScaleButtonStyle())
+            .buttonStyle(.plain)
 
             Spacer()
-                .frame(width: 12)
+                .frame(width: 10)
 
             // Left side - Month selector
             Button(action: onMonthTapped) {
-                HStack(spacing: 10) {
-
-
+                HStack(spacing: 7) {
                     Text(monthName)
-                        .font(AppTypography.headline(weight: .medium))
-                        .foregroundColor(AppColors.textPrimary)
+                        .font(.system(size: 15, weight: .regular))
+                        .foregroundColor(Color.grey50)
 
-                    Image(systemName: "chevron.right")
-                        .font(AppTypography.caption(weight: .medium))
-                        .foregroundColor(AppColors.textTertiary)
-                        .rotationEffect(.degrees(showQuickNavigation ? 90 : 0))
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(Color.grey50)
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(AppColors.surfaceElevated)
-                .cornerRadius(10)
-                .shadow(color: AppColors.textPrimary.opacity(0.04), radius: 8, x: 0, y: 2)
             }
-            .buttonStyle(ScaleButtonStyle())
+            .buttonStyle(.plain)
 
             Spacer()
 
@@ -73,33 +62,25 @@ struct TopNavBar: View {
             HStack(spacing: 12) {
                 Button(action: {}) {
                     Image(systemName: "magnifyingglass")
-                        .font(AppTypography.body(weight: .regular))
-                        .foregroundColor(AppColors.textSecondary)
-                        .frame(width: 38, height: 38)
-                        .background(AppColors.surfaceElevated)
-                        .cornerRadius(10)
-                        .shadow(color: AppColors.textPrimary.opacity(0.04), radius: 8, x: 0, y: 2)
+                        .font(.system(size: 18, weight: .regular))
+                        .foregroundColor(Color.grey50)
                 }
                 .buttonStyle(ScaleButtonStyle())
 
                 Button(action: onTodayTapped) {
                     Text(todayDayNumber)
-                        .font(AppTypography.callout(weight: .medium))
-                        .foregroundColor(AppColors.textPrimary)
-                        .frame(width: 38, height: 38)
-                        .background(AppColors.accentSubtle)
-                        .cornerRadius(10)
-                        .shadow(color: AppColors.accent.opacity(0.08), radius: 8, x: 0, y: 2)
+                        .font(.system(size: 13, weight: .regular))
+                        .foregroundColor(Color.grey50)
+                        .frame(width: 23, height: 23)
+                        .background(Color.frameTransparent7)
+                        .cornerRadius(6)
                 }
-                .buttonStyle(ScaleButtonStyle())
+                .buttonStyle(.plain)
             }
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 16)
-        .background(
-            AppColors.surface
-                .shadow(color: AppColors.textPrimary.opacity(0.03), radius: 1, x: 0, y: 1)
-        )
+        .padding(.horizontal, 15)
+        .padding(.vertical, 10)
+        
     }
 }
 

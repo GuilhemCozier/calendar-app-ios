@@ -52,39 +52,49 @@ struct ContentView: View {
                     }
 
                     ZStack(alignment: .bottomTrailing) {
-                    VStack(spacing: 0) {
-                        TopNavBar(
-                            viewedDate: viewedDate,
-                            showQuickNavigation: showQuickNavigation,
-                            onTodayTapped: {
-                                animateToDate(Date())
-                                shouldScrollMonthToToday = true
-                            },
-                            onMonthTapped: {
-                                withAnimation(AppAnimations.spring) {
-                                    showQuickNavigation.toggle()
-                                }
-                            },
-                            onMenuTapped: {
-                                withAnimation(AppAnimations.spring) {
-                                    showSidePanel.toggle()
+                        VStack(spacing: 0) {
+                            VStack(spacing: 0) {
+                                
+                                TopNavBar(
+                                    viewedDate: viewedDate,
+                                    showQuickNavigation: showQuickNavigation,
+                                    onTodayTapped: {
+                                        animateToDate(Date())
+                                        shouldScrollMonthToToday = true
+                                    },
+                                    onMonthTapped: {
+                                        withAnimation(AppAnimations.spring) {
+                                            showQuickNavigation.toggle()
+                                        }
+                                    },
+                                    onMenuTapped: {
+                                        withAnimation(AppAnimations.spring) {
+                                            showSidePanel.toggle()
+                                        }
+                                    }
+                                    
+                                )
+                                
+                                
+                                // Quick Navigation (conditionally shown)
+                                if showQuickNavigation {
+                                    VStack(spacing: 0) {
+                                        MonthSelector(
+                                            viewedDate: $viewedDate,
+                                            shouldScrollToToday: $shouldScrollMonthToToday
+                                        )
+                                        Divider()
+                                        QuickDateSelector(viewedDate: $viewedDate)
+                                        Divider()
+                                    }
+                                    .transition(.opacity)
+                                    
                                 }
                             }
-                        )
-
-                    // Quick Navigation (conditionally shown)
-                    if showQuickNavigation {
-                        VStack(spacing: 0) {
-                            MonthSelector(
-                                viewedDate: $viewedDate,
-                                shouldScrollToToday: $shouldScrollMonthToToday
-                            )
-                            Divider()
-                            QuickDateSelector(viewedDate: $viewedDate)
-                            Divider()
-                        }
-                        .transition(.opacity)
-                    }
+                            .background(Color.frameSoft5)
+                        
+                        
+                        
 
                     // Main content area - switches based on view mode
                     Group {
@@ -218,7 +228,7 @@ struct ContentView: View {
                     )
                     }
                     }
-                    .background(AppColors.background)
+                    .background(Color.white)
                     .onChange(of: timeSelection) { _, newValue in
                         if newValue != nil {
                             sheetPosition = .peek

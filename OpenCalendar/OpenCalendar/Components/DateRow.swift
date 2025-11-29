@@ -24,17 +24,26 @@ struct DateRow: View {
 
     var body: some View {
         // Compact date display - day abbreviation and number
-        VStack(spacing: 4) {
-            Text(dayOfWeekShort)
-                .font(AppTypography.caption(weight: .medium))
-                .foregroundColor(AppColors.textSecondary)
-
-            Text(dayNumber)
-                .font(AppTypography.title(weight: .semibold))
-                .foregroundColor(AppColors.textPrimary)
+        HStack(alignment: .bottom){
+            Rectangle()
+                .frame(width: 1, height: 15)
+                        .foregroundColor(.gray)
+            VStack(spacing: 1) {
+                Text(dayOfWeekShort)
+                    .font(.system(size: 10, weight: .regular))
+                    .foregroundColor(Color.darkGrey60)
+                
+                Text(dayNumber)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(Color.pitchBlack100)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 5)
+            Rectangle()
+                .frame(width: 1, height: 15)
+                        .foregroundColor(.gray)
+                        
+                
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 12)
-        .background(AppColors.surface)
     }
 }

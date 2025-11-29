@@ -14,12 +14,20 @@ struct WholeDayRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
             // Left: "All day" label
-            Text("All day")
-                .font(AppTypography.caption(weight: .medium))
-                .foregroundColor(AppColors.textTertiary)
-                .frame(width: 65, alignment: .trailing)
-                .padding(.trailing, 12)
-
+            VStack(alignment: .trailing) {
+                Text("All day")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(Color.grey50)
+                    .frame(width: 20)
+                    .multilineTextAlignment(.trailing)
+                Spacer()
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(Color.grey50)
+            }
+            .frame(width: 45)
+            .padding(.horizontal, 5.5)
+            .padding(.vertical, 5)
             // Right: All-day events
             VStack(spacing: 6) {
                 ForEach(events) { event in
@@ -29,7 +37,7 @@ struct WholeDayRow: View {
                 if events.isEmpty {
                     Rectangle()
                         .fill(Color.clear)
-                        .frame(height: 44)
+                        .frame(height: 32)
                 }
             }
             .overlay(alignment: .bottom) {
@@ -38,8 +46,6 @@ struct WholeDayRow: View {
                     .frame(height: 1)
             }
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 12)
         .background(AppColors.surface)
     }
 }
